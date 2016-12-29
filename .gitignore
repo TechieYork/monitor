@@ -1,0 +1,16 @@
+vendor
+
+bin
+pkg
+
+*.a
+*.so
+
+log
+*.log
+
+*.idea
+
+agent/src/*.sh
+agent/plugin/*/*.sh
+agent/plugin/*/*.sh
