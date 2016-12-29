@@ -106,76 +106,76 @@ func InitTransferQueue(bufferSize int) (*queue.TransferQueue, error) {
 func main() {
 	defer log.Flush()
 
-	//Initialize log using configuration from "../conf/monitorX_agent_log.config"
-	err := InitLog("../conf/monitorX_agent_log.config")
+	//Initialize log using configuration from "../conf/monitor_agent_log.config"
+	err := InitLog("../conf/monitor_agent_log.config")
 
 	if err != nil {
 		log.Warnf("Read config failed! error:%s", err)
 		return
 	}
 
-	log.Info("Starting monitorX_agent ...")
+	log.Info("Starting monitor_agent ...")
 
-	//Initialize the configuration from "../conf/monitorX_agent_config.json"
-	log.Info("Initialize monitorX_agent configuration from ../conf/monitorX_agent_config.json ...")
-	config, err := InitConfig("../conf/monitorX_agent_config.json")
+	//Initialize the configuration from "../conf/monitor_agent_config.json"
+	log.Info("Initialize monitor_agent configuration from ../conf/monitor_agent_config.json ...")
+	config, err := InitConfig("../conf/monitor_agent_config.json")
 
 	if err != nil {
-		log.Warnf("Initialize monitorX_agent configuration failed! error:%s", err)
+		log.Warnf("Initialize monitor_agent configuration failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitorX_agent configuration successed! config:", config)
+	log.Info("Initialize monitor_agent configuration successed! config:", config)
 
 	//Initialize all plugin libs
-	log.Info("Initialize monitorX_agent plugin libs ...")
+	log.Info("Initialize monitor_agent plugin libs ...")
 	err = InitPluginLibs(config)
 
 	if err != nil {
-		log.Warnf("Initialize monitorX_agent plugin libs failed! error:%s", err)
+		log.Warnf("Initialize monitor_agent plugin libs failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitorX_agent plugin libs successed!")
+	log.Info("Initialize monitor_agent plugin libs successed!")
 
 	//Init queue between input plugin and output plugin
-	log.Info("Initialize monitorX_agent transfer queue ...")
+	log.Info("Initialize monitor_agent transfer queue ...")
 	transfer, err := InitTransferQueue(config.Node.TransferQueue.BufferSize)
 
 	if err != nil {
-		log.Warnf("Initialize monitorX_agent transfer queue failed! error:%s", err)
+		log.Warnf("Initialize monitor_agent transfer queue failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitorX_agent transfer queue successed! buffer size:", config.Node.TransferQueue.BufferSize)
+	log.Info("Initialize monitor_agent transfer queue successed! buffer size:", config.Node.TransferQueue.BufferSize)
 
 	//Start output plugins
-	log.Info("Initialize monitorX_agent output plugin ...")
+	log.Info("Initialize monitor_agent output plugin ...")
 	outputPluginManager := output.NewOutputPluginManager(config.Node, config.Outputs, transfer)
 
 	err = outputPluginManager.Init()
 
 	if err != nil {
-		log.Warnf("Initialize monitorX_agent output plugin failed! error:%s", err)
+		log.Warnf("Initialize monitor_agent output plugin failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitorX_agent output plugin successed!")
+	log.Info("Initialize monitor_agent output plugin successed!")
 
 	outputPluginManager.Run()
 
 	//Start input plugins
-	log.Info("Initialize monitorX_agent input plugin ...")
+	log.Info("Initialize monitor_agent input plugin ...")
 	inputPluginManager := input.NewInputPluginManager(config.Node, config.Inputs, transfer)
 
 	err = inputPluginManager.Init()
 
 	if err != nil {
-		log.Warnf("Initialize monitorX_agent input plugin failed! error:%s", err)
+		log.Warnf("Initialize monitor_agent input plugin failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitorX_agent input plugin successed!")
+	log.Info("Initialize monitor_agent input plugin successed!")
 
 	inputPluginManager.Run()
 

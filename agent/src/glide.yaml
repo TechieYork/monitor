@@ -1,4 +1,4 @@
-package: github.com/TechieYork/monitorX_agent
+package: github.com/DarkMetrix/monitor/agent
 import:
 - package: github.com/cihub/seelog
   version: ^2.6

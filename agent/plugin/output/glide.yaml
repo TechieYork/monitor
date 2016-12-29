@@ -1,4 +1,4 @@
-package: github.com/TechieYork/monitorX_agent/plugin/output
+package: github.com/DarkMetrix/monitor/agent/plugin/output
 import:
 - package: github.com/cihub/seelog
   version: ^2.6
