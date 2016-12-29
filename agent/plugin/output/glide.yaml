@@ -1,0 +1,8 @@
+package: github.com/TechieYork/monitorX_agent/plugin/output
+import:
+- package: github.com/cihub/seelog
+  version: ^2.6
+- package: github.com/nsqio/go-nsq
+  version: ^1.0.6
+- package: gopkg.in/mgo.v2
+- package: github.com/influxdata/influxdb

@@ -1,0 +1,9 @@
+hash: 87334b38f30453c326b2f90138911557acd2ebed00f0681742d9ef6104736532
+updated: 2016-12-08T16:32:50.492113833+08:00
+imports:
+- name: github.com/mreiferson/go-snappystream
+  version: 028eae7ab5c4c9e2d1cb4c4ca1e53259bbe7e504
+  repo: https://github.com/mreiferson/go-snappystream
+- name: github.com/nsqio/go-nsq
+  version: 8e6d40fe7f7baa8e0e606bb64f8f9579704d72c4
+devImports: []

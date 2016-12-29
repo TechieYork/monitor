@@ -1,0 +1,6 @@
+hash: ca783bdcd976fdb8c7fe25ba0e865dc4203e0a2b241364d97df98b37f2775e0b
+updated: 2016-12-11T00:35:20.154885191-05:00
+imports:
+- name: github.com/akhenakh/statgo
+  version: 0b405e70c35657f503841e5f7791446d74075c86
+testImports: []

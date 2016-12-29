@@ -1,0 +1,5 @@
+package: github.com/TechieYork/monitorX_agent/plugin/input
+import:
+- package: github.com/cihub/seelog
+  version: ^2.6
+- package: github.com/akhenakh/statgo
