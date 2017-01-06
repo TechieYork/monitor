@@ -1,3 +1,6 @@
+.DS_Store
+*.bak
+
 vendor
 
 bin
@@ -14,3 +17,5 @@ log
 agent/src/*.sh
 agent/plugin/*/*.sh
 agent/plugin/*/*.sh
+
+server/src/*.sh

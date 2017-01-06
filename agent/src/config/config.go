@@ -8,46 +8,51 @@ const Version = "0.0.1"
 
 //Transfer queue information
 type TransferQueueInfo struct{
-	BufferSize int `mapstructure:"buffer_size"`
+	BufferSize int `mapstructure:"buffer_size" json:"buffer_size"`
 }
 
 //Node information
 type NodeInfo struct {
-	Name string `mapstructure:"name"`
-	IP string `mapstructure:"ip"`
-	TransferQueue TransferQueueInfo `mapstructure:"transfer_queue"`
+	Name string `mapstructure:"name" json:"name"`
+	IP string `mapstructure:"ip" json:"ip"`
+	TransferQueue TransferQueueInfo `mapstructure:"transfer_queue" json:"transfer_queue"`
 }
 
 //Admin information
 type AdminInfo struct {
-	Ip string `mapstructure:"ip"`
-	Port int `mapstructure:"port"`
+	Address string `mapstructure:"addr" json:"addr"`
+}
+
+//Registry information
+type RegistryInfo struct {
+	Address string `mapstructure:"addr" json:"addr"`
 }
 
 //Input plugin information
 type InputPluginInfo struct {
-	Name string `mapstructure:"plugin_name"`
-	Path string `mapstructure:"plugin_path"`
-	Duration int `mapstructure:"duration"`
-	Active bool `mapstructure:"active"`
-	PluginConfig map[string]string `mapstructure:"config"`
+	Name string `mapstructure:"plugin_name" json:"plugin_name"`
+	Path string `mapstructure:"plugin_path" json:"plugin_path"`
+	Duration int `mapstructure:"duration" json:"duration"`
+	Active bool `mapstructure:"active" json:"active"`
+	PluginConfig map[string]string `mapstructure:"config" json:"config"`
 }
 
 //Output plugin information
 type OutputPluginInfo struct {
-	Name string `mapstructure:"plugin_name"`
-	Path string `mapstructure:"plugin_path"`
-	Active bool `mapstructure:"active"`
-	Inputs map[string]bool `mapstructure:"inputs"`
-	PluginConfig map[string]string `mapstructure:"config"`
+	Name string `mapstructure:"plugin_name" json:"plugin_name"`
+	Path string `mapstructure:"plugin_path" json:"plugin_path"`
+	Active bool `mapstructure:"active" json:"active"`
+	Inputs map[string]bool `mapstructure:"inputs" json:"inputs"`
+	PluginConfig map[string]string `mapstructure:"config" json:"config"`
 }
 
 //Config sturcture
 type Config struct {
-	Node NodeInfo `mapstructure:"node"`
-	Admin AdminInfo `mapstructure:"admin"`
-	Inputs []InputPluginInfo `mapstructure:"input_plugin"`
-	Outputs []OutputPluginInfo `mapstructure:"output_plugin"`
+	Node NodeInfo `mapstructure:"node" json:"node"`
+	Admin AdminInfo `mapstructure:"admin" json:"admin"`
+	Registry RegistryInfo `mapstructure:"registry" json:"registry"`
+	Inputs []InputPluginInfo `mapstructure:"input_plugin" json:"input_plugin"`
+	Outputs []OutputPluginInfo `mapstructure:"output_plugin" json:"output_plugin"`
 }
 
 //Global config
@@ -57,7 +62,8 @@ var globalConfig *Config
 func NewConfig() *Config {
 	return &Config{
 		Node:NodeInfo{Name:"unknown", TransferQueue:TransferQueueInfo{BufferSize:1000}},
-		Admin:AdminInfo{Ip:"127.0.0.1", Port:9000},
+		Admin:AdminInfo{Address:""},
+		Registry:RegistryInfo{Address:""},
 		Inputs:[]InputPluginInfo{},
 		Outputs:[]OutputPluginInfo{},
 	}

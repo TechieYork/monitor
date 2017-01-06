@@ -9,10 +9,13 @@
 		}
 	},
 
-	"admin":
+	"admin":{
+		"addr":":9000"
+	},
+
+	"registry":
 	{
-		"ip":"10.0.0.1",
-		"port":9000
+		"addr":"http://172.16.101.128:9111/monitor/node_register"
 	},
 
 	"input_plugin":
@@ -94,7 +97,7 @@
 		{
 			"plugin_name": "console",
 			"plugin_path": "../plugin/output/console.so",
-			"active":true,
+			"active":false,
 			"inputs":
 			{
 				"node":false,
@@ -104,7 +107,7 @@
 				"net":false,
 				"page":false,
 				"process":false,
-				"interfaces":true,
+				"interfaces":false,
 				"application":false
 			},
 			"config":

@@ -1,0 +1,13 @@
+{
+	"server": {
+		"addr":":9111"
+	},
+	"mongodb":{
+		"addr":"172.16.101.128:27017",
+		"db_name":"monitorX_db"
+	},
+	"influxdb":{
+		"addr":"http://172.16.101.128:8086",
+		"db_name":"monitorX_db"
+	}
+}
