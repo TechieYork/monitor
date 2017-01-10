@@ -97,7 +97,7 @@
 		{
 			"plugin_name": "console",
 			"plugin_path": "../plugin/output/console.so",
-			"active":false,
+			"active":true,
 			"inputs":
 			{
 				"node":false,
@@ -108,7 +108,7 @@
 				"page":false,
 				"process":false,
 				"interfaces":false,
-				"application":false
+				"application":true
 			},
 			"config":
 			{
@@ -122,13 +122,14 @@
 			"inputs":
 			{
 				"node":true,
-				"cpu":true,
-				"memory":true,
-				"filesystem":true,
-				"net":true,
-				"page":true,
-				"process":true,
-				"interfaces":true
+				"cpu":false,
+				"memory":false,
+				"filesystem":false,
+				"net":false,
+				"page":false,
+				"process":false,
+				"interfaces":false,
+				"application":true
 			},
 			"config":
 			{

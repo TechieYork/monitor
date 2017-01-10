@@ -16,6 +16,12 @@ type InfluxdbInfo struct {
 	DBName string `mapstructure:"db_name"`
 }
 
+//Nsq information
+type NsqInfo struct {
+	Address string `mapstructure:"addr"`
+	TopicName string `mapstructure:"topic"`
+}
+
 //Server information
 type ServerInfo struct {
 	Address string `mapstructure:"addr"`
@@ -25,6 +31,7 @@ type ServerInfo struct {
 type Config struct {
 	Server ServerInfo `mapstructure:"server"`
 	Mongodb MongodbInfo `mapstructure:"mongodb"`
+	Nsq NsqInfo `mapstructure:"nsq"`
 	Influxdb InfluxdbInfo `mapstructure:"influxdb"`
 }
 

@@ -1,5 +1,10 @@
 package protocol
 
+import "time"
+
+/*
+ * Node information
+ */
 //Transfer queue information
 type TransferQueueInfo struct{
 	BufferSize int `json:"buffer_size" bson:"buffer_size"`
@@ -58,4 +63,71 @@ func NewNodeConfig() *NodeConfig {
 		Inputs:[]InputPluginInfo{},
 		Outputs:[]OutputPluginInfo{},
 	}
+}
+
+/*
+ * Page information
+ */
+type PageInfo struct {
+	Begin int `json:"begin" bson:"begin"`
+	Number int `json:"number" bson:"number"`
+}
+
+func NewPageInfo() *PageInfo {
+	return &PageInfo{
+		Begin:0,
+		Number:0,
+	}
+}
+
+/*
+ * Node
+ */
+type Node struct {
+	Time string `json:"time" bson:"time"`
+	Config NodeConfig `json:"node_config" bson:"node_config"`
+	Info Data `json:"node_info" bson:"node_info"`
+}
+
+/*
+ * Data
+ */
+type Data struct {
+	Time string `json:"time"`
+	Tag map[string]interface{} `json:"tag"`
+	Field map[string]interface{} `json:"field"`
+}
+
+func NewData() *Data{
+	return &Data{
+		Time: time.Now().String(),
+		Tag: make(map[string]interface{}),
+		Field: make(map[string]interface{}),
+	}
+}
+
+type Proto struct {
+	Name string `json:"name"`
+	Version int `json:"version"`
+	DataList []Data `json:"data"`
+}
+
+func NewProto(version int) *Proto {
+	return &Proto{
+		Name: "",
+		Version: version,
+		DataList: []Data{},
+	}
+}
+
+/*
+ * Point
+ */
+type PointInfo struct {
+	UpdateTime string `json:"update_time" bson:"update_time"`
+}
+
+type Point struct {
+	Name string `json:"name" bson:"name"`
+	Info PointInfo `json:"info" bson:"info"`
 }

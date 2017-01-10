@@ -3,9 +3,9 @@ package protocol
 import "time"
 
 type Data struct {
-	Time string `json:time`
-	Tag map[string]interface{} `json:tag`
-	Field map[string]interface{} `json:field`
+	Time string `json:"time"`
+	Tag map[string]interface{} `json:"tag"`
+	Field map[string]interface{} `json:"field"`
 }
 
 func NewData() *Data{
@@ -17,9 +17,9 @@ func NewData() *Data{
 }
 
 type Proto struct {
-	Name string `json:name`
-	Version int `json:version`
-	DataList []Data `json:data`
+	Name string `json:"name"`
+	Version int `json:"version"`
+	DataList []Data `json:"data"`
 }
 
 func NewProto(version int) *Proto {

@@ -100,8 +100,7 @@ func Collect()(*protocol.Proto, error) {
 
 		data.Tag["node_name"] = GlobalNodeInfo.Name
 		data.Tag["node_ip"] = GlobalNodeInfo.IP
-		data.Tag["key"] = pointKey
-		data.Field["value"] = pointValue
+		data.Field[pointKey] = pointValue
 
 		proto.DataList = append(proto.DataList, *data)
 	}

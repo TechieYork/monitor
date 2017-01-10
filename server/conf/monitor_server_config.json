@@ -9,5 +9,9 @@
 	"influxdb":{
 		"addr":"http://172.16.101.128:8086",
 		"db_name":"monitorX_db"
+	},
+	"nsq":{
+		"addr":"172.16.101.128:4150",
+		"topic":"monitorX_to_nsq"
 	}
 }
