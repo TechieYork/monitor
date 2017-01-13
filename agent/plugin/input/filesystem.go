@@ -9,6 +9,7 @@ import(
 	"github.com/DarkMetrix/monitor/agent/src/protocol"
 
 	"github.com/akhenakh/statgo"
+	"regexp"
 )
 
 var GlobalNodeInfo config.NodeInfo
@@ -56,12 +57,23 @@ func Collect()(*protocol.Proto, error) {
 	currentTime := curTime.Local().Format("2006-01-02 15:04:05")
 
 	for _, info := range fsInfos {
-		if len(GlobalIncludes) != 0 {
-			_, ok := GlobalIncludes[info.MountPoint]
+		is_match := false
 
-			if !ok {
+		for key := range GlobalIncludes {
+			match, err := regexp.MatchString(key, info.DeviceName)
+
+			if err != nil {
 				continue
 			}
+
+			if match {
+				is_match = true
+				break
+			}
+		}
+
+		if !is_match {
+			continue
 		}
 
 		data := protocol.NewData()

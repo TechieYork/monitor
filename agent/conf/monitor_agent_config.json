@@ -13,11 +13,6 @@
 		"addr":":9000"
 	},
 
-	"registry":
-	{
-		"addr":"http://172.16.101.128:9111/monitor/node_register"
-	},
-
 	"input_plugin":
 	[
 		{
@@ -51,7 +46,7 @@
 			"active":true,
 			"config":
 			{
-				"include":"/;/data"
+				"include":"/dev/sda.*;/dev/mapper/centos-root.*"
 			}
 		},
 		{
@@ -103,12 +98,12 @@
 				"node":false,
 				"cpu":false,
 				"memory":false,
-				"filesystem":false,
+				"filesystem":true,
 				"net":false,
 				"page":false,
 				"process":false,
 				"interfaces":false,
-				"application":true
+				"application":false
 			},
 			"config":
 			{
@@ -118,7 +113,7 @@
 		{
 			"plugin_name": "nsq",
 			"plugin_path": "../plugin/output/nsq.so",
-			"active":true,
+			"active":false,
 			"inputs":
 			{
 				"node":true,

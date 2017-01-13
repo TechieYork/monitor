@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/influxdata/influxdb/client/v2"
+	"time"
 )
 
 type MonitorServer struct {
@@ -101,12 +102,12 @@ func (server *MonitorServer) GetNodes(context *gin.Context) {
 
 	if request.IP == "all" {
 		query = client.Query{
-			Command: "SELECT * FROM node GROUP BY node_ip LIMIT 1",
+			Command: "SELECT * FROM node GROUP BY node_ip ORDER BY time desc LIMIT 1",
 			Database: server.Config.Influxdb.DBName,
 		}
 	} else {
 		query = client.Query{
-			Command: fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip LIMIT 1", request.IP),
+			Command: fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip ORDER BY time desc LIMIT 1", request.IP),
 			Database: server.Config.Influxdb.DBName,
 		}
 	}
@@ -161,7 +162,8 @@ func (server *MonitorServer) GetNodes(context *gin.Context) {
 		}
 	}
 
-	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"node_list":nodes}})
+	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success),
+		"data":gin.H{"node_list":nodes, "server_time":time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")}})
 }
 
 //Http interface get_node_instances
@@ -357,6 +359,8 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 	//Get all metrix except application
 	for measurement := range collection.Measurements {
 		var method string
+		var groupby string
+		groupby = ""
 
 		switch measurement {
 		case "cpu":
@@ -367,6 +371,7 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 			break
 		case "filesystem":
 			method = "MAX"
+			groupby = ", mount_point, device_name "
 			break
 		case "net":
 			method = "SUM"
@@ -378,6 +383,7 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 			method = "MAX"
 			break
 		case "interfaces":
+			groupby = ", interface "
 			method = "MEAN"
 			break
 		default:
@@ -402,8 +408,8 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 		}
 
 		query := client.Query{
-			Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance ORDER BY time desc",
-				method, measurement, request.Time, request.IP, interval),
+			Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance%s ORDER BY time desc",
+				method, measurement, request.Time, request.IP, interval, groupby),
 			Database: server.Config.Influxdb.DBName,
 		}
 

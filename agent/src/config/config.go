@@ -23,11 +23,6 @@ type AdminInfo struct {
 	Address string `mapstructure:"addr" json:"addr"`
 }
 
-//Registry information
-type RegistryInfo struct {
-	Address string `mapstructure:"addr" json:"addr"`
-}
-
 //Input plugin information
 type InputPluginInfo struct {
 	Name string `mapstructure:"plugin_name" json:"plugin_name"`
@@ -50,7 +45,6 @@ type OutputPluginInfo struct {
 type Config struct {
 	Node NodeInfo `mapstructure:"node" json:"node"`
 	Admin AdminInfo `mapstructure:"admin" json:"admin"`
-	Registry RegistryInfo `mapstructure:"registry" json:"registry"`
 	Inputs []InputPluginInfo `mapstructure:"input_plugin" json:"input_plugin"`
 	Outputs []OutputPluginInfo `mapstructure:"output_plugin" json:"output_plugin"`
 }
@@ -63,7 +57,6 @@ func NewConfig() *Config {
 	return &Config{
 		Node:NodeInfo{Name:"unknown", TransferQueue:TransferQueueInfo{BufferSize:1000}},
 		Admin:AdminInfo{Address:""},
-		Registry:RegistryInfo{Address:""},
 		Inputs:[]InputPluginInfo{},
 		Outputs:[]OutputPluginInfo{},
 	}

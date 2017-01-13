@@ -70,7 +70,7 @@ func Collect()(*protocol.Proto, error) {
 		data.Tag["node_name"] = GlobalNodeInfo.Name
 		data.Tag["node_ip"] = GlobalNodeInfo.IP
 
-		data.Tag["name"] = info.Name
+		data.Tag["interface"] = info.Name
 		data.Tag["factor"] = info.Factor
 		data.Tag["duplex"] = info.Duplex
 		data.Tag["state"] = info.State
