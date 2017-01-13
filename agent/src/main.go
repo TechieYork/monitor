@@ -3,12 +3,9 @@ package main
 import (
 	"os"
 	"os/signal"
+	"time"
 	"errors"
 	"plugin"
-	"time"
-	"bytes"
-	"encoding/json"
-	"net/http"
 
 	"github.com/DarkMetrix/monitor/agent/src/config"
 	"github.com/DarkMetrix/monitor/agent/src/queue"
@@ -107,43 +104,6 @@ func InitTransferQueue(bufferSize int) (*queue.TransferQueue, error) {
 	return transfer, nil
 }
 
-func Register(config *config.Config) error {
-	body, err := json.Marshal(config)
-
-	if err != nil {
-		return err
-	}
-
-	resp, err := http.Post(config.Registry.Address, "application/json", bytes.NewBuffer(body))
-
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	return nil
-}
-
-func RegisterNodeConfig(config *config.Config) {
-	err := Register(config)
-
-	if err != nil {
-		log.Warnf("Register node config failed! error:%s", err)
-	}
-
-	for {
-		select {
-		case <- time.After(time.Second * 3600):
-			err := Register(config)
-
-			if err != nil {
-				log.Warnf("Register node config failed! error:%s", err)
-			}
-		}
-	}
-}
-
 func main() {
 	defer log.Flush()
 
@@ -155,7 +115,7 @@ func main() {
 		return
 	}
 
-	log.Info("Starting monitor_agent ...")
+	log.Info(time.Now().String(), "Starting monitor_agent ... ")
 
 	//Initialize the configuration from "../conf/monitor_agent_config.json"
 	log.Info("Initialize monitor_agent configuration from ../conf/monitor_agent_config.json ...")
@@ -219,9 +179,6 @@ func main() {
 	log.Info("Initialize monitor_agent input plugin successed!")
 
 	inputPluginManager.Run()
-
-	//Go register node config
-	go RegisterNodeConfig(config)
 
 	//Deal with signals
 	signalChannel := make(chan os.Signal, 1)

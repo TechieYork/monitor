@@ -134,7 +134,7 @@
 			"config":
 			{
 				"nsqd_address":"172.16.101.128:4150",
-				"topic":"monitorX_to_nsq"
+				"topic":"dark_metrix_monitor"
 			}
 		},
 		{
@@ -148,7 +148,7 @@
 			"config":
 			{
 				"mongodb_address":"172.16.101.128:27017",
-				"db_name":"monitorX_db"
+				"db_name":"dark_metrix"
 			}
 		},
 		{
@@ -157,6 +157,7 @@
 			"active":true,
 			"inputs":
 			{
+				"node":true,
 				"cpu":true,
 				"memory":true,
 				"filesystem":true,
@@ -169,7 +170,7 @@
 			"config":
 			{
 				"influxdb_address":"http://172.16.101.128:8086",
-				"db_name":"monitorX_db"
+				"db_name":"dark_metrix"
 			}
 		}
 	]

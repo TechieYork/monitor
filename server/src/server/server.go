@@ -1,10 +1,9 @@
 package server
 
 import (
-	"time"
-	"encoding/json"
+	"fmt"
 	"io/ioutil"
-	"sync"
+	"encoding/json"
 
 	"github.com/DarkMetrix/monitor/common/error_code"
 	"github.com/DarkMetrix/monitor/server/src/config"
@@ -13,46 +12,19 @@ import (
 	log "github.com/cihub/seelog"
 
 	"github.com/gin-gonic/gin"
-
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 	"github.com/influxdata/influxdb/client/v2"
-	"github.com/nsqio/go-nsq"
 )
 
 type MonitorServer struct {
 	Config config.Config
-	MongodbClient *mgo.Session
 	InfluxdbClient client.Client
-	NsqConsumer *nsq.Consumer
-
-	//Application info
-	PointMap map[string]string
-	Lock sync.Mutex
 }
 
 //New Config
 func NewMonitorServer(config *config.Config) *MonitorServer {
 	return &MonitorServer{
 		Config:*config,
-		PointMap:make(map[string]string),
 	}
-}
-
-//Init mongodb
-func (server *MonitorServer) InitMongodb() error {
-	var err error
-
-	server.MongodbClient, err = mgo.DialWithTimeout(server.Config.Mongodb.Address, time.Second * 5)
-
-	if err != nil {
-		return err
-	}
-
-	server.MongodbClient.SetSyncTimeout(time.Second * 5)
-	server.MongodbClient.SetSocketTimeout(time.Second * 5)
-
-	return nil
 }
 
 //Init influxdb
@@ -70,136 +42,8 @@ func (server *MonitorServer) InitInfluxdb() error {
 	return nil
 }
 
-//Nsq consumer
-func (server *MonitorServer) HandleMessage(message *nsq.Message) error {
-	//log.Info("Message:", string(message.Body))
-
-	var err error
-
-	//Unmarshal json
-	proto := protocol.NewProto(1)
-	err = json.Unmarshal(message.Body, proto)
-
-	if err != nil {
-		log.Warn("Decode body failed! error:", err)
-		return err
-	}
-
-	switch proto.Name {
-	case "node":
-		server.HandleNodeMessage(proto)
-	case "application":
-		server.HandleApplicationMessage(proto)
-	}
-
-	return nil
-}
-
-//Init nsq
-func (server *MonitorServer) InitNsq() error {
-	var err error
-
-	//Init nsq producer
-	server.NsqConsumer, err = nsq.NewConsumer(server.Config.Nsq.TopicName, "monitor_server", nsq.NewConfig())
-
-	if err != nil {
-		return err
-	}
-
-	server.NsqConsumer.AddHandler(server)
-
-	err = server.NsqConsumer.ConnectToNSQD(server.Config.Nsq.Address)
-
-	if err != nil {
-		return err
-	}
-
-	go server.ApplicationMessageProcessor()
-
-	return nil
-}
-
-//Handle node message
-func (server *MonitorServer) HandleNodeMessage (proto *protocol.Proto) {
-	var err error
-
-	//Update node information in mongodb
-	db := server.MongodbClient.DB(server.Config.Mongodb.DBName)
-	collection := db.C("node")
-
-	for _, data := range proto.DataList {
-		err = collection.Update(
-			bson.M{"node_config.node.name":data.Tag["node_name"], "node_config.node.ip":data.Tag["node_ip"]},
-			bson.M{"$set":bson.M{"node_info":data}})
-
-		if err != nil {
-			log.Warn("Update to mongodb failed! error:", err)
-			server.MongodbClient.Refresh()
-
-			continue
-		}
-	}
-}
-
-//Handle application message
-func (server *MonitorServer) HandleApplicationMessage (proto *protocol.Proto) {
-	//Update application node information in mongodb
-	server.Lock.Lock()
-	defer server.Lock.Unlock()
-
-	curTime := time.Now()
-	currentTime := curTime.Local().Format("2006-01-02 15:04:05")
-
-	for _, data := range proto.DataList {
-		for key := range data.Field {
-			server.PointMap[key] = currentTime
-		}
-	}
-}
-
-//Application message processor
-func (server *MonitorServer) ApplicationMessageProcessor () {
-	var err error
-
-	//Upsert report point to mongodb every 5 seconds
-	for {
-		select {
-		case <- time.After(time.Second * 5):
-			server.Lock.Lock()
-
-			db := server.MongodbClient.DB(server.Config.Mongodb.DBName)
-			collection := db.C("application")
-
-			for key, value := range server.PointMap {
-				_, err = collection.Upsert(
-					bson.M{"name":key},
-					bson.M{"name":key, "info":bson.M{"update_time":value}})
-
-				if err != nil {
-					log.Warn("Update to mongodb failed! error:", err)
-					server.MongodbClient.Refresh()
-
-					continue
-				}
-			}
-
-			server.PointMap = make(map[string]string)
-
-			server.Lock.Unlock()
-		}
-	}
-}
-
-//Run
 func (server *MonitorServer) Run () error {
 	var err error
-
-	//Init mongodb
-	err = server.InitMongodb()
-
-	if err != nil {
-		return err
-	}
 
 	//Init influxdb
 	err = server.InitInfluxdb()
@@ -208,19 +52,14 @@ func (server *MonitorServer) Run () error {
 		return err
 	}
 
-	//Init nsq
-	err = server.InitNsq()
-
-	if err != nil {
-		return err
-	}
-
 	//Begin serve
 	http := gin.Default()
 
-	http.POST("/monitor/node_register", server.NodeRegister)
-	http.POST("/monitor/get_node_list", server.GetNodeList)
-	http.POST("/monitor/get_point_list", server.GetPointList)
+	http.POST("/monitor/get_nodes", server.GetNodes)
+	http.POST("/monitor/get_node_instances", server.GetNodeInstances)
+	http.POST("/monitor/get_node_metrix", server.GetNodeMetrix)
+	http.POST("/monitor/get_application_instances", server.GetApplicationInstances)
+	http.POST("/monitor/get_application_metrix", server.GetApplicationMetrix)
 
 	err = http.Run(server.Config.Server.Address)
 
@@ -231,7 +70,8 @@ func (server *MonitorServer) Run () error {
 	return nil
 }
 
-func (server *MonitorServer) NodeRegister(context *gin.Context) {
+//Http interface get_nodes
+func (server *MonitorServer) GetNodes(context *gin.Context) {
 	var err error
 
 	//Get json body
@@ -246,54 +86,9 @@ func (server *MonitorServer) NodeRegister(context *gin.Context) {
 	log.Info("Request body:", string(body))
 
 	//Unmarshal json
-	node := protocol.NewNodeConfig()
-	err = json.Unmarshal(body, node)
+	var request protocol.GetNodesRequest
 
-	if err != nil {
-		log.Warn("Decode body failed! error:", err)
-		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
-		return
-	}
-
-	//Upsert to mongo db
-	db := server.MongodbClient.DB(server.Config.Mongodb.DBName)
-	collection := db.C("node")
-
-	curTime := time.Now()
-	currentTime := curTime.Local().Format("2006-01-02 15:04:05")
-
-	_, err = collection.Upsert(
-		bson.M{"node_config.node.name":node.Node.Name, "node_config.node.ip":node.Node.IP},
-		bson.M{"time":currentTime, "node_config":node})
-
-	if err != nil {
-		log.Warn("Upsert to mongodb failed! error:", err)
-		server.MongodbClient.Refresh()
-
-		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
-		return
-	}
-
-	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success)})
-}
-
-func (server *MonitorServer) GetNodeList(context *gin.Context) {
-	var err error
-
-	//Get json body
-	body, err := ioutil.ReadAll(context.Request.Body)
-
-	if err != nil {
-		log.Warn("Get request body failed! error:", err)
-		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
-		return
-	}
-
-	log.Info("Request body:", string(body))
-
-	//Unmarshal json
-	page := protocol.NewPageInfo()
-	err = json.Unmarshal(body, page)
+	err = json.Unmarshal(body, &request)
 
 	if err != nil {
 		log.Warn("Decode body failed! error:", err)
@@ -302,29 +97,340 @@ func (server *MonitorServer) GetNodeList(context *gin.Context) {
 	}
 
 	//Get node list
-	db := server.MongodbClient.DB(server.Config.Mongodb.DBName)
-	collection := db.C("node")
+	var query client.Query
+
+	if request.IP == "all" {
+		query = client.Query{
+			Command: "SELECT * FROM node GROUP BY node_ip LIMIT 1",
+			Database: server.Config.Influxdb.DBName,
+		}
+	} else {
+		query = client.Query{
+			Command: fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip LIMIT 1", request.IP),
+			Database: server.Config.Influxdb.DBName,
+		}
+	}
+
+	response, err := server.InfluxdbClient.Query(query)
+
+	if err != nil {
+		log.Warn("Query show measurements failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
+
+	if response.Error() != nil {
+		log.Warn("Query response failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
 
 	nodes := []protocol.Node{}
 
-	if page.Begin == 0 && page.Number == 0 {
-		err = collection.Find(&bson.M{}).All(&nodes)
-	} else {
-		err = collection.Find(&bson.M{}).Sort("node_ip").Skip(page.Begin * page.Number).Limit(page.Number).All(&nodes)
-	}
+	for _, result := range response.Results {
+		for _, serie := range result.Series {
+			if serie.Name == "node" {
+				node := protocol.NewNode()
 
-	if err != nil {
-		log.Warn("Find from mongodb failed! error:", err)
-		server.MongodbClient.Refresh()
+				for index, val := range serie.Columns {
+					column := fmt.Sprintf("%s", val)
 
-		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
-		return
+					if len(serie.Values) <= 0 {
+						log.Warn("Get tag value failed! error:val array len is 0")
+						context.JSON(200, gin.H{"code":error_code.Fail, "desc":error_code.GetErrorString(error_code.Fail)})
+						return
+					}
+
+					if len(serie.Columns) != len(serie.Values[0]) {
+						log.Warn("Get tag value failed! error:columns and valuse len not match")
+						context.JSON(200, gin.H{"code":error_code.Fail, "desc":error_code.GetErrorString(error_code.Fail)})
+						return
+					}
+
+					value := fmt.Sprintf("%s", serie.Values[0][index])
+
+					node.Info[column] = value
+				}
+
+				for key, value := range serie.Tags {
+					node.Info[key] = value
+				}
+
+				nodes = append(nodes, *node)
+			}
+		}
 	}
 
 	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"node_list":nodes}})
 }
 
-func (server *MonitorServer) GetPointList(context *gin.Context) {
+//Http interface get_node_instances
+func (server *MonitorServer) GetNodeInstances(context *gin.Context) {
+	var err error
+
+	//Get json body
+	body, err := ioutil.ReadAll(context.Request.Body)
+
+	if err != nil {
+		log.Warn("Get request body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
+		return
+	}
+
+	log.Info("Request body:", string(body))
+
+	//Unmarshal json
+	var request protocol.GetNodeInstancesRequest
+
+	err = json.Unmarshal(body, &request)
+
+	if err != nil {
+		log.Warn("Decode body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
+		return
+	}
+
+	//Get all measurements
+	query := client.Query{
+		Command: "SHOW MEASUREMENTS",
+		Database: server.Config.Influxdb.DBName,
+	}
+
+	response, err := server.InfluxdbClient.Query(query)
+
+	if err != nil {
+		log.Warn("Query show measurements failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
+
+	if response.Error() != nil {
+		log.Warn("Query response failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
+
+	//Get all instances except application
+	collection := protocol.NewNodeInstance()
+
+	for _, result := range response.Results {
+		for _, serie := range result.Series {
+			if serie.Name == "measurements" {
+				for _, val := range serie.Values {
+					for _, m := range val {
+						measurement := fmt.Sprintf("%s", m)
+
+						if measurement== "application" {
+							continue
+						}
+
+						collection.Measurements[measurement] = []string{}
+					}
+				}
+			}
+		}
+	}
+
+	for key := range collection.Measurements {
+		//Get node list
+		var query client.Query
+
+		if request.IP == "all" {
+			query = client.Query{
+				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\"", key),
+				Database: server.Config.Influxdb.DBName,
+			}
+		} else {
+			query = client.Query{
+				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\" WHERE node_ip = '%s'", key, request.IP),
+				Database: server.Config.Influxdb.DBName,
+			}
+		}
+
+		log.Info("Query string:", query.Database, "-> ", query.Command)
+
+		response, err := server.InfluxdbClient.Query(query)
+
+		if err != nil {
+			log.Warn("Query show tag values failed! error:", err)
+			context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+			return
+		}
+
+		if response.Error() != nil {
+			log.Warn("Query response failed! error:", err)
+			context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+			return
+		}
+
+		for _, result := range response.Results {
+			for _, serie := range result.Series {
+				if serie.Name != "application" {
+					for _, value := range serie.Values {
+						for _, inst := range value {
+							instance := fmt.Sprintf("%s", inst)
+
+							if instance == "instance" {
+								continue
+							}
+
+							collection.Measurements[key] = append(collection.Measurements[key], instance)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":collection})
+}
+
+//Http interface get_node_metrix
+func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
+	var err error
+
+	//Get json body
+	body, err := ioutil.ReadAll(context.Request.Body)
+
+	if err != nil {
+		log.Warn("Get request body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
+		return
+	}
+
+	log.Info("Request body:", string(body))
+
+	//Unmarshal json
+	var request protocol.GetNodeMetrixRequest
+
+	err = json.Unmarshal(body, &request)
+
+	if err != nil {
+		log.Warn("Decode body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
+		return
+	}
+
+	//Get all measurements
+	query := client.Query{
+		Command: "SHOW MEASUREMENTS",
+		Database: server.Config.Influxdb.DBName,
+	}
+
+	response, err := server.InfluxdbClient.Query(query)
+
+	if err != nil {
+		log.Warn("Query show measurements failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
+
+	if response.Error() != nil {
+		log.Warn("Query response failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		return
+	}
+
+	//Get all instances except application
+	collection := protocol.NewNodeInstance()
+
+	for _, result := range response.Results {
+		for _, serie := range result.Series {
+			if serie.Name == "measurements" {
+				for _, val := range serie.Values {
+					for _, m := range val {
+						measurement := fmt.Sprintf("%s", m)
+
+						if measurement== "application" {
+							continue
+						}
+
+						collection.Measurements[measurement] = []string{}
+					}
+				}
+			}
+		}
+	}
+
+	metrixes := make(map[string][]client.Result)
+
+	//Get all metrix except application
+	for measurement := range collection.Measurements {
+		var method string
+
+		switch measurement {
+		case "cpu":
+			method = "MEAN"
+			break
+		case "memory":
+			method = "MEAN"
+			break
+		case "filesystem":
+			method = "MAX"
+			break
+		case "net":
+			method = "SUM"
+			break
+		case "page":
+			method = "SUM"
+			break
+		case "process":
+			method = "MAX"
+			break
+		case "interfaces":
+			method = "MEAN"
+			break
+		default:
+			method = "SUM"
+		}
+
+		var interval string
+
+		switch request.Time {
+		case "1h":
+			interval = "1m"
+		case "1d":
+			interval = "1m"
+		case "7d":
+			interval = "5m"
+		case "30d":
+			interval = "10m"
+		case "90d":
+			interval = "30m"
+		default:
+			interval = "5m"
+		}
+
+		query := client.Query{
+			Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance ORDER BY time desc",
+				method, measurement, request.Time, request.IP, interval),
+			Database: server.Config.Influxdb.DBName,
+		}
+
+		log.Info("Query string:", query.Database, "-> ", query.Command)
+
+		response, err := server.InfluxdbClient.Query(query)
+
+		if err != nil {
+			log.Warn("Query select failed! error:", err)
+			context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+			return
+		}
+
+		if response.Error() != nil {
+			log.Warn("Query response failed! error:", err)
+			context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+			return
+		}
+
+		metrixes[measurement] = response.Results
+	}
+
+	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"metrix":metrixes}})
+}
+
+//Http interface get_application_instances
+func (server *MonitorServer) GetApplicationInstances(context *gin.Context) {
 	var err error
 
 	//Get json body
@@ -348,25 +454,34 @@ func (server *MonitorServer) GetPointList(context *gin.Context) {
 		return
 	}
 
-	//Get node list
-	db := server.MongodbClient.DB(server.Config.Mongodb.DBName)
-	collection := db.C("application")
+	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"node_list":"1"}})
+}
 
-	points := []protocol.Point{}
+//Http interface get_application_metrix
+func (server *MonitorServer) GetApplicationMetrix(context *gin.Context) {
+	var err error
 
-	if page.Begin == 0 && page.Number == 0 {
-		err = collection.Find(&bson.M{}).All(&points)
-	} else {
-		err = collection.Find(&bson.M{}).Sort("name").Skip(page.Begin * page.Number).Limit(page.Number).All(&points)
-	}
+	//Get json body
+	body, err := ioutil.ReadAll(context.Request.Body)
 
 	if err != nil {
-		log.Warn("Find from mongodb failed! error:", err)
-		server.MongodbClient.Refresh()
-
-		context.JSON(200, gin.H{"code":error_code.ServerBusy, "desc":error_code.GetErrorString(error_code.ServerBusy)})
+		log.Warn("Get request body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
 		return
 	}
 
-	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"node_list":points}})
+	log.Info("Request body:", string(body))
+
+	//Unmarshal json
+	page := protocol.NewPageInfo()
+	err = json.Unmarshal(body, page)
+
+	if err != nil {
+		log.Warn("Decode body failed! error:", err)
+		context.JSON(200, gin.H{"code":error_code.ParamError, "desc":error_code.GetErrorString(error_code.ParamError)})
+		return
+	}
+
+	context.JSON(200, gin.H{"code":error_code.Success, "desc":error_code.GetErrorString(error_code.Success), "data":gin.H{"node_list":"1"}})
 }
+

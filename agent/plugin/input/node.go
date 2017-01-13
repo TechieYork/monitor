@@ -55,8 +55,7 @@ func Collect()(*protocol.Proto, error) {
 	data.Tag["ncpus"] = GlobalHostInfo.NCPUs
 	data.Tag["max_cpus"] = GlobalHostInfo.MaxCPUs
 	data.Tag["bitwidth"] = GlobalHostInfo.BitWidth
-	data.Tag["type"] = "heartbeat"
-	data.Field["value"] = 1
+	data.Field["heartbeat"] = 1
 
 	proto.DataList = append(proto.DataList, *data)
 

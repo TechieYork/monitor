@@ -59,11 +59,11 @@ func Send(proto *protocol.Proto) error {
 	for _, data := range proto.DataList {
 		tags := make(map[string]string)
 
-		curTime, err := time.Parse("2006-01-02 15:04:05", data.Time)
+		//curTime, err := time.Parse("2006-01-02 15:04:05", data.Time)
 
-		if err != nil {
-			continue
-		}
+		//if err != nil {
+		//	continue
+		//}
 
 		for key, value := range data.Tag {
 			tags[key] = fmt.Sprintf("%v", value)
@@ -73,7 +73,7 @@ func Send(proto *protocol.Proto) error {
 			tags["instance"] = key
 			field := map[string]interface{}{"value":value}
 
-			point, err := client.NewPoint(proto.Name, tags, field, curTime)
+			point, err := client.NewPoint(proto.Name, tags, field, time.Now())
 
 			if err != nil {
 				continue

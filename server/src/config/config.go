@@ -4,22 +4,10 @@ import "github.com/spf13/viper"
 
 const Version = "0.0.1"
 
-//Mongodb information
-type MongodbInfo struct {
-	Address string `mapstructure:"addr"`
-	DBName string `mapstructure:"db_name"`
-}
-
 //Influxdb information
 type InfluxdbInfo struct {
 	Address string `mapstructure:"addr"`
 	DBName string `mapstructure:"db_name"`
-}
-
-//Nsq information
-type NsqInfo struct {
-	Address string `mapstructure:"addr"`
-	TopicName string `mapstructure:"topic"`
 }
 
 //Server information
@@ -30,8 +18,6 @@ type ServerInfo struct {
 //Config sturcture
 type Config struct {
 	Server ServerInfo `mapstructure:"server"`
-	Mongodb MongodbInfo `mapstructure:"mongodb"`
-	Nsq NsqInfo `mapstructure:"nsq"`
 	Influxdb InfluxdbInfo `mapstructure:"influxdb"`
 }
 
