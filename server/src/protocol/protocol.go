@@ -16,6 +16,16 @@ type GetNodeMetrixRequest struct {
 	Time string `json:"time"`
 }
 
+type GetApplicationInstancesRequest struct {
+	IP string `json:"ip"`
+}
+
+type GetApplicationMetrixRequest struct {
+	IP string `json:"ip"`
+	Time string `json:"time"`
+	Instance string `json:"instance"`
+}
+
 /*
  * Page information
  */
@@ -53,6 +63,19 @@ type NodeInstance struct {
 
 func NewNodeInstance() *NodeInstance {
 	return &NodeInstance{
+		Measurements:make(map[string][]string),
+	}
+}
+
+/*
+ * Application instance
+ */
+type ApplicationInstance struct {
+	Measurements map[string][]string `json:"measurements"`
+}
+
+func NewApplicationInstance() *ApplicationInstance {
+	return &ApplicationInstance{
 		Measurements:make(map[string][]string),
 	}
 }

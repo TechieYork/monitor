@@ -60,22 +60,22 @@ func main() {
 	log.Info("Starting monitor_server ...")
 
 	//Initialize the configuration from "../conf/monitor_server_config.json"
-	log.Info("Initialize monitor_agent configuration from ../conf/monitor_server_config.json ...")
+	log.Info("Initialize monitor server configuration from ../conf/monitor_server_config.json ...")
 	config, err := InitConfig("../conf/monitor_server_config.json")
 
 	if err != nil {
-		log.Warnf("Initialize monitor_agent configuration failed! error:%s", err)
+		log.Warnf("Initialize monitor_server configuration failed! error:%s", err)
 		return
 	}
 
-	log.Info("Initialize monitor_agent configuration successed! config:", config)
+	log.Info("Initialize monitor_server configuration successed! config:", config)
 
 	monitor_server := server.NewMonitorServer(config)
 
 	err = monitor_server.Run()
 
 	if err != nil {
-		log.Warnf("Run monitor server failed! error:%s", err)
+		log.Warnf("Run monitor_server failed! error:%s", err)
 		return
 	}
 }
