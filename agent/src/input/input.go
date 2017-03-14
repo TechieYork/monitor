@@ -12,54 +12,56 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+//Input plugin
 type InputPlugin struct {
-	Node config.NodeInfo
-	Config config.InputPluginInfo
-	CollectQueue queue.TransferQueue
+	node config.NodeInfo
+	config config.InputPluginInfo
+	collectQueue queue.TransferQueue
 
-	Plugin *plugin.Plugin
+	plugin *plugin.Plugin
 
-	InitFunc plugin.Symbol
-	CollectFunc plugin.Symbol
+	initFunc plugin.Symbol
+	collectFunc plugin.Symbol
 }
 
 func NewInputPlugin(nodeInfo config.NodeInfo, configInfo config.InputPluginInfo, bufferSize int) *InputPlugin {
 	return &InputPlugin{
-		Node: nodeInfo,
-		Config: configInfo,
-		CollectQueue: *queue.NewTransferQueue(bufferSize),
-		Plugin: nil,
+		node: nodeInfo,
+		config: configInfo,
+		collectQueue: *queue.NewTransferQueue(bufferSize),
+		plugin: nil,
 	}
 }
 
+//Init plugin
 func (inputPlugin *InputPlugin) Init () error {
 	//Initialize plugin
-	p, err := plugin.Open(inputPlugin.Config.Path)
+	p, err := plugin.Open(inputPlugin.config.Path)
 
 	if err != nil {
 		return err
 	}
 
-	inputPlugin.Plugin = p
+	inputPlugin.plugin = p
 
-	InitFunc, err := inputPlugin.Plugin.Lookup("Init")
-
-	if err != nil {
-		return err
-	}
-
-	inputPlugin.InitFunc = InitFunc
-
-	CollectFunc, err := inputPlugin.Plugin.Lookup("Collect")
+	InitFunc, err := inputPlugin.plugin.Lookup("Init")
 
 	if err != nil {
 		return err
 	}
 
-	inputPlugin.CollectFunc = CollectFunc
+	inputPlugin.initFunc = InitFunc
+
+	CollectFunc, err := inputPlugin.plugin.Lookup("Collect")
+
+	if err != nil {
+		return err
+	}
+
+	inputPlugin.collectFunc = CollectFunc
 
 	//Call plugin interface to initialize
-	err = inputPlugin.InitFunc.(func(config.NodeInfo, map[string]string) error)(inputPlugin.Node, inputPlugin.Config.PluginConfig)
+	err = inputPlugin.initFunc.(func(config.NodeInfo, map[string]string) error)(inputPlugin.node, inputPlugin.config.PluginConfig)
 
 	if err != nil {
 		return err
@@ -68,13 +70,14 @@ func (inputPlugin *InputPlugin) Init () error {
 	return nil
 }
 
+//Run to collect data
 func (inputPlugin *InputPlugin) Run () {
 	//Loop to call plugin interface to collect data
 	for {
 		select {
-		case <- time.After(time.Second * time.Duration(inputPlugin.Config.Duration)):
+		case <- time.After(time.Second * time.Duration(inputPlugin.config.Duration)):
 			//Call plugin Collect function
-			data, err := inputPlugin.CollectFunc.(func()(*protocol.Proto, error))()
+			data, err := inputPlugin.collectFunc.(func()(*protocol.Proto, error))()
 
 			if err != nil {
 				log.Warnf("Collect data failed! error:%s", err)
@@ -83,48 +86,50 @@ func (inputPlugin *InputPlugin) Run () {
 
 			//log.Infof("Collect data from %s, data:%s", inputPlugin.Config.Name, data)
 
-			data.Name = inputPlugin.Config.Name
+			data.Name = inputPlugin.config.Name
 
 			//Push to collect queue
-			inputPlugin.CollectQueue.Push(data)
+			inputPlugin.collectQueue.Push(data)
 		}
 	}
 }
 
+//Input plugin manager
 type InputPluginManager struct {
-	Node config.NodeInfo
-	Configs []config.InputPluginInfo
-	Plugins map[string]*InputPlugin
-	TransferQueue *queue.TransferQueue
+	node config.NodeInfo
+	configs []config.InputPluginInfo
+	plugins map[string]*InputPlugin
+	transferQueue *queue.TransferQueue
 }
 
 func NewInputPluginManager(nodeInfo config.NodeInfo, configInfos []config.InputPluginInfo, transferQueue *queue.TransferQueue) *InputPluginManager {
 	return &InputPluginManager{
-		Node: nodeInfo,
-		Configs: configInfos,
-		Plugins: map[string]*InputPlugin{},
-		TransferQueue: transferQueue,
+		node: nodeInfo,
+		configs: configInfos,
+		plugins: map[string]*InputPlugin{},
+		transferQueue: transferQueue,
 	}
 }
 
+//Init plugin manager
 func (manager *InputPluginManager) Init () error {
 	//Loop to initialize all input plugins
 	pluginActiveNumber := 0
 
-	for _, pluginConfig := range manager.Configs {
+	for _, pluginConfig := range manager.configs {
 		if !pluginConfig.Active {
 			continue
 		}
 
 		log.Info("Initialize input plugin, plugin name:", pluginConfig.Name)
-		_, ok := manager.Plugins[pluginConfig.Name]
+		_, ok := manager.plugins[pluginConfig.Name]
 
 		if ok {
 			log.Warnf("Initialize input plugin failed! plugin name:%s, error:All ready started", pluginConfig.Name)
 			return errors.New("All ready started, plugin name:" + pluginConfig.Name)
 		}
 
-		plugin := NewInputPlugin(manager.Node, pluginConfig, 1000)
+		plugin := NewInputPlugin(manager.node, pluginConfig, 1000)
 
 		err := plugin.Init()
 
@@ -132,7 +137,7 @@ func (manager *InputPluginManager) Init () error {
 			return err
 		}
 
-		manager.Plugins[pluginConfig.Name] = plugin
+		manager.plugins[pluginConfig.Name] = plugin
 
 		log.Info("Initialize input plugin successed! plugin name:", pluginConfig.Name)
 
@@ -146,10 +151,11 @@ func (manager *InputPluginManager) Init () error {
 	return nil
 }
 
+//Run all plugin to collect data
 func (manager *InputPluginManager) Run () {
 	//Loop to run all input plugins
-	for _, plugin := range manager.Plugins {
-		if !plugin.Config.Active {
+	for _, plugin := range manager.plugins {
+		if !plugin.config.Active {
 			continue
 		}
 
@@ -171,6 +177,6 @@ func (manager *InputPluginManager) Run () {
 					log.Warnf("InputPlugin transfer failed! error:%s", err)
 				}
 			}
-		}(&plugin.CollectQueue, manager.TransferQueue)
+		}(&plugin.collectQueue, manager.transferQueue)
 	}
 }

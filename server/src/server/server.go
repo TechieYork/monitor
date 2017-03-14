@@ -14,14 +14,14 @@ import (
 )
 
 type MonitorServer struct {
-	Config config.Config
-	InfluxdbClient client.Client
+	config config.Config                                //Config information
+	influxdbClient client.Client                        //Influxdb client connection
 }
 
 //New Config
 func NewMonitorServer(config *config.Config) *MonitorServer {
 	return &MonitorServer{
-		Config:*config,
+		config:*config,
 	}
 }
 
@@ -29,8 +29,8 @@ func NewMonitorServer(config *config.Config) *MonitorServer {
 func (server *MonitorServer) InitInfluxdb() error {
 	var err error
 
-	server.InfluxdbClient, err = client.NewHTTPClient(client.HTTPConfig{
-		Addr: server.Config.Influxdb.Address,
+	server.influxdbClient, err = client.NewHTTPClient(client.HTTPConfig{
+		Addr: server.config.Influxdb.Address,
 	})
 
 	if err != nil {
@@ -59,7 +59,7 @@ func (server *MonitorServer) Run () error {
 	http.GET("/monitor/application/instances", server.GetApplicationInstances)
 	http.GET("/monitor/application/metrix", server.GetApplicationMetrix)
 
-	err = http.Run(server.Config.Server.Address)
+	err = http.Run(server.config.Server.Address)
 
 	if err != nil {
 		return err
@@ -88,16 +88,16 @@ func (server *MonitorServer) GetNodes(context *gin.Context) {
 	if request.IP == "all" {
 		query = client.Query{
 			Command: "SELECT * FROM node GROUP BY node_ip ORDER BY time desc LIMIT 1",
-			Database: server.Config.Influxdb.DBName,
+			Database: server.config.Influxdb.DBName,
 		}
 	} else {
 		query = client.Query{
 			Command: fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip ORDER BY time desc LIMIT 1", request.IP),
-			Database: server.Config.Influxdb.DBName,
+			Database: server.config.Influxdb.DBName,
 		}
 	}
 
-	response, err := server.InfluxdbClient.Query(query)
+	response, err := server.influxdbClient.Query(query)
 
 	if err != nil {
 		log.Warn("Query show measurements failed! error:", err)
@@ -168,10 +168,10 @@ func (server *MonitorServer) GetNodeInstances(context *gin.Context) {
 	//Get all measurements
 	query := client.Query{
 		Command: "SHOW MEASUREMENTS",
-		Database: server.Config.Influxdb.DBName,
+		Database: server.config.Influxdb.DBName,
 	}
 
-	response, err := server.InfluxdbClient.Query(query)
+	response, err := server.influxdbClient.Query(query)
 
 	if err != nil {
 		log.Warn("Query show measurements failed! error:", err)
@@ -213,18 +213,18 @@ func (server *MonitorServer) GetNodeInstances(context *gin.Context) {
 		if request.IP == "all" {
 			query = client.Query{
 				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\"", key),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		} else {
 			query = client.Query{
 				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\" WHERE node_ip = '%s'", key, request.IP),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		}
 
 		log.Info("Query string:", query.Database, "-> ", query.Command)
 
-		response, err := server.InfluxdbClient.Query(query)
+		response, err := server.influxdbClient.Query(query)
 
 		if err != nil {
 			log.Warn("Query show tag values failed! error:", err)
@@ -278,10 +278,10 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 	//Get all measurements
 	query := client.Query{
 		Command: "SHOW MEASUREMENTS",
-		Database: server.Config.Influxdb.DBName,
+		Database: server.config.Influxdb.DBName,
 	}
 
-	response, err := server.InfluxdbClient.Query(query)
+	response, err := server.influxdbClient.Query(query)
 
 	if err != nil {
 		log.Warn("Query show measurements failed! error:", err)
@@ -372,12 +372,12 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 		query := client.Query{
 			Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance%s ORDER BY time desc",
 				method, measurement, request.Time, request.IP, interval, groupby),
-			Database: server.Config.Influxdb.DBName,
+			Database: server.config.Influxdb.DBName,
 		}
 
 		log.Info("Query string:", query.Database, "-> ", query.Command)
 
-		response, err := server.InfluxdbClient.Query(query)
+		response, err := server.influxdbClient.Query(query)
 
 		if err != nil {
 			log.Warn("Query select failed! error:", err)
@@ -417,18 +417,18 @@ func (server *MonitorServer) GetApplicationInstances(context *gin.Context) {
 	if request.IP == "all" {
 		query = client.Query{
 			Command: "SHOW TAG VALUES FROM application WITH KEY = \"instance\"",
-			Database: server.Config.Influxdb.DBName,
+			Database: server.config.Influxdb.DBName,
 		}
 	} else {
 		query = client.Query{
 			Command: fmt.Sprintf("SHOW TAG VALUES FROM application WITH KEY = \"instance\" WHERE node_ip = '%s'", request.IP),
-			Database: server.Config.Influxdb.DBName,
+			Database: server.config.Influxdb.DBName,
 		}
 	}
 
 	log.Info("Query string:", query.Database, "-> ", query.Command)
 
-	response, err := server.InfluxdbClient.Query(query)
+	response, err := server.influxdbClient.Query(query)
 
 	if err != nil {
 		log.Warn("Query show tag values failed! error:", err)
@@ -510,13 +510,13 @@ func (server *MonitorServer) GetApplicationMetrix(context *gin.Context) {
 			query = client.Query{
 				Command: fmt.Sprintf("SELECT SUM(value) FROM application WHERE time > now() - %s GROUP BY time(%s), instance ORDER BY time desc",
 					request.Time, interval),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		} else {
 			query = client.Query{
 				Command: fmt.Sprintf("SELECT SUM(value) FROM application WHERE time > now() - %s AND instance = '%s' GROUP BY time(%s), instance ORDER BY time desc",
 					request.Time, request.Instance, interval),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		}
 
@@ -525,20 +525,20 @@ func (server *MonitorServer) GetApplicationMetrix(context *gin.Context) {
 			query = client.Query{
 				Command: fmt.Sprintf("SELECT SUM(value) FROM application WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance ORDER BY time desc",
 					request.Time, request.IP, interval),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		} else {
 			query = client.Query{
 				Command: fmt.Sprintf("SELECT SUM(value) FROM application WHERE time > now() - %s AND node_ip = '%s' AND instance = '%s' GROUP BY time(%s), instance ORDER BY time desc",
 					request.Time, request.IP, request.Instance, interval),
-				Database: server.Config.Influxdb.DBName,
+				Database: server.config.Influxdb.DBName,
 			}
 		}
 	}
 
 	log.Info("Query string:", query.Database, "-> ", query.Command)
 
-	response, err := server.InfluxdbClient.Query(query)
+	response, err := server.influxdbClient.Query(query)
 
 	if err != nil {
 		log.Warn("Query select failed! error:", err)

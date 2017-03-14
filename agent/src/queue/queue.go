@@ -7,8 +7,9 @@ import (
 	"github.com/DarkMetrix/monitor/agent/src/protocol"
 )
 
+//Transfer queue
 type TransferQueue struct {
-	queueChannel chan *protocol.Proto
+	queueChannel chan *protocol.Proto   //Queue
 }
 
 func NewTransferQueue(bufferSize int) *TransferQueue {
@@ -17,6 +18,7 @@ func NewTransferQueue(bufferSize int) *TransferQueue {
 	}
 }
 
+//Push proto to queue
 func (queue *TransferQueue) Push(item* protocol.Proto) error {
 	select {
 	case queue.queueChannel <- item:
@@ -26,6 +28,7 @@ func (queue *TransferQueue) Push(item* protocol.Proto) error {
 	}
 }
 
+//Pop proto from queue
 func (queue * TransferQueue) Pop(ms time.Duration) (*protocol.Proto, error) {
 	select {
 	case item, ok := <- queue.queueChannel:

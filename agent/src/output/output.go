@@ -12,31 +12,33 @@ import (
 	log "github.com/cihub/seelog"
 )
 
+//Output plugin
 type OutputPlugin struct {
-	Node config.NodeInfo
-	Config config.OutputPluginInfo
-	SendQueue queue.TransferQueue
+	node config.NodeInfo                    //Node information
+	config config.OutputPluginInfo          //Plugin information
+	sendQueue queue.TransferQueue           //Transfer queue
 
-	Plugin *plugin.Plugin
+	plugin *plugin.Plugin                   //Plugin pointer
 
-	InitFunc plugin.Symbol
-	SendFunc plugin.Symbol
+	initFunc plugin.Symbol                  //Init function symbol
+	sendFunc plugin.Symbol                  //Send function symbol
 }
 
 func NewOutputPlugin(nodeInfo config.NodeInfo, configInfo config.OutputPluginInfo, bufferSize int) *OutputPlugin {
 	return &OutputPlugin{
-		Node: nodeInfo,
-		Config: configInfo,
-		SendQueue: *queue.NewTransferQueue(bufferSize),
+		node: nodeInfo,
+		config: configInfo,
+		sendQueue: *queue.NewTransferQueue(bufferSize),
 	}
 }
 
+//Init plugin
 func (outputPlugin *OutputPlugin) Init () error {
 	//Check input plugin, if no inputs specify then default as all
-	if len(outputPlugin.Config.Inputs) != 0 {
+	if len(outputPlugin.config.Inputs) != 0 {
 		inputActiveCount := 0
 
-		for _, isActive := range outputPlugin.Config.Inputs {
+		for _, isActive := range outputPlugin.config.Inputs {
 			if !isActive {
 				continue
 			}
@@ -45,36 +47,36 @@ func (outputPlugin *OutputPlugin) Init () error {
 		}
 
 		if inputActiveCount == 0 {
-			return errors.New("No '" + outputPlugin.Config.Name + "' output plugin's input plugin active!")
+			return errors.New("No '" + outputPlugin.config.Name + "' output plugin's input plugin active!")
 		}
 	}
 	//Initialize plugin
-	p, err := plugin.Open(outputPlugin.Config.Path)
+	p, err := plugin.Open(outputPlugin.config.Path)
 
 	if err != nil {
 		return err
 	}
 
-	outputPlugin.Plugin = p
+	outputPlugin.plugin = p
 
-	InitFunc, err := outputPlugin.Plugin.Lookup("Init")
-
-	if err != nil {
-		return err
-	}
-
-	outputPlugin.InitFunc = InitFunc
-
-	SendFunc, err := outputPlugin.Plugin.Lookup("Send")
+	InitFunc, err := outputPlugin.plugin.Lookup("Init")
 
 	if err != nil {
 		return err
 	}
 
-	outputPlugin.SendFunc = SendFunc
+	outputPlugin.initFunc = InitFunc
+
+	SendFunc, err := outputPlugin.plugin.Lookup("Send")
+
+	if err != nil {
+		return err
+	}
+
+	outputPlugin.sendFunc = SendFunc
 
 	//Call plugin interface to initialize
-	err = outputPlugin.InitFunc.(func(config.NodeInfo, map[string]string) error)(outputPlugin.Node, outputPlugin.Config.PluginConfig)
+	err = outputPlugin.initFunc.(func(config.NodeInfo, map[string]string) error)(outputPlugin.node, outputPlugin.config.PluginConfig)
 
 	if err != nil {
 		return err
@@ -83,11 +85,12 @@ func (outputPlugin *OutputPlugin) Init () error {
 	return nil
 }
 
+//Run to send data
 func (outputPlugin *OutputPlugin) Run () {
 	//Loop to call plugin interface to send data
 	for {
 		//Pop from transfer queue
-		data, err := outputPlugin.SendQueue.Pop(time.Millisecond * 10)
+		data, err := outputPlugin.sendQueue.Pop(time.Millisecond * 10)
 
 		if err != nil {
 			continue
@@ -96,7 +99,7 @@ func (outputPlugin *OutputPlugin) Run () {
 		//log.Infof("send data to %s, data:%s", outputPlugin.Config.Name, data)
 
 		//Call plugin Send function
-		err = outputPlugin.SendFunc.(func(*protocol.Proto) error)(data)
+		err = outputPlugin.sendFunc.(func(*protocol.Proto) error)(data)
 
 		if err != nil {
 			log.Warnf("Send data failed! error:%s, data:%s", err, data)
@@ -105,40 +108,42 @@ func (outputPlugin *OutputPlugin) Run () {
 	}
 }
 
+//Output plugin manager
 type OutputPluginManager struct {
-	Node config.NodeInfo
-	Configs []config.OutputPluginInfo
-	Plugins map[string]*OutputPlugin
-	TransferQueue *queue.TransferQueue
+	node config.NodeInfo                        //Node information
+	configs []config.OutputPluginInfo           //All output plugin configs
+	plugins map[string]*OutputPlugin            //All plugins
+	transferQueue *queue.TransferQueue          //Transfer queue
 }
 
 func NewOutputPluginManager(nodeInfo config.NodeInfo, configInfos []config.OutputPluginInfo, transferQueue *queue.TransferQueue) *OutputPluginManager {
 	return &OutputPluginManager{
-		Node: nodeInfo,
-		Configs: configInfos,
-		Plugins: map[string]*OutputPlugin{},
-		TransferQueue: transferQueue,
+		node: nodeInfo,
+		configs: configInfos,
+		plugins: map[string]*OutputPlugin{},
+		transferQueue: transferQueue,
 	}
 }
 
+//Init output plugin manager
 func (manager *OutputPluginManager) Init () error {
 	//Loop to initialize all output plugins
 	pluginActiveNumber := 0
 
-	for _, pluginConfig := range manager.Configs {
+	for _, pluginConfig := range manager.configs {
 		if !pluginConfig.Active {
 			continue
 		}
 
 		log.Info("Initialize output plugin, plugin name:", pluginConfig.Name)
-		_, ok := manager.Plugins[pluginConfig.Name]
+		_, ok := manager.plugins[pluginConfig.Name]
 
 		if ok {
 			log.Warnf("Initialize output plugin failed! plugin name:%s, error:All ready started", pluginConfig.Name)
 			return errors.New("All ready started, plugin name:" + pluginConfig.Name)
 		}
 
-		plugin := NewOutputPlugin(manager.Node, pluginConfig, 1000)
+		plugin := NewOutputPlugin(manager.node, pluginConfig, 1000)
 
 		err := plugin.Init()
 
@@ -146,7 +151,7 @@ func (manager *OutputPluginManager) Init () error {
 			return err
 		}
 
-		manager.Plugins[pluginConfig.Name] = plugin
+		manager.plugins[pluginConfig.Name] = plugin
 
 		log.Info("Initialize output plugin successed! plugin name:", pluginConfig.Name)
 
@@ -160,10 +165,11 @@ func (manager *OutputPluginManager) Init () error {
 	return nil
 }
 
+//Run to dispatch data to output plugin
 func (manager *OutputPluginManager) Run () {
 	//Loop to run all input plugins
-	for _, plugin := range manager.Plugins {
-		if !plugin.Config.Active {
+	for _, plugin := range manager.plugins {
+		if !plugin.config.Active {
 			continue
 		}
 
@@ -173,22 +179,22 @@ func (manager *OutputPluginManager) Run () {
 	//Loop to pop data from transfer queue and push into send queue
 	go func(manager *OutputPluginManager) {
 		for {
-			data, err := manager.TransferQueue.Pop(time.Millisecond * 100)
+			data, err := manager.transferQueue.Pop(time.Millisecond * 100)
 
 			if err != nil {
 				continue
 			}
 
-			for _, plugin := range manager.Plugins {
+			for _, plugin := range manager.plugins {
 				//Check is this input plugin in the output plugin's inputs map
-				isActive, ok := plugin.Config.Inputs[data.Name]
+				isActive, ok := plugin.config.Inputs[data.Name]
 
 				if !ok || !isActive {
 					continue
 				}
 
 				//Send
-				err = plugin.SendQueue.Push(data)
+				err = plugin.sendQueue.Push(data)
 
 				if err != nil {
 					log.Warnf("InputPlugin transfer failed! error:%s", err)
