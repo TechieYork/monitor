@@ -18,11 +18,6 @@ type NodeInfo struct {
 	TransferQueue TransferQueueInfo `mapstructure:"transfer_queue" json:"transfer_queue"`
 }
 
-//Admin information
-type AdminInfo struct {
-	Address string `mapstructure:"addr" json:"addr"`
-}
-
 //Input plugin information
 type InputPluginInfo struct {
 	Name string `mapstructure:"plugin_name" json:"plugin_name"`
@@ -44,7 +39,6 @@ type OutputPluginInfo struct {
 //Config sturcture
 type Config struct {
 	Node NodeInfo `mapstructure:"node" json:"node"`
-	Admin AdminInfo `mapstructure:"admin" json:"admin"`
 	Inputs []InputPluginInfo `mapstructure:"input_plugin" json:"input_plugin"`
 	Outputs []OutputPluginInfo `mapstructure:"output_plugin" json:"output_plugin"`
 }
@@ -56,7 +50,6 @@ var globalConfig *Config
 func NewConfig() *Config {
 	return &Config{
 		Node:NodeInfo{Name:"unknown", TransferQueue:TransferQueueInfo{BufferSize:1000}},
-		Admin:AdminInfo{Address:""},
 		Inputs:[]InputPluginInfo{},
 		Outputs:[]OutputPluginInfo{},
 	}
