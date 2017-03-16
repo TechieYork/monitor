@@ -6,7 +6,7 @@ A monitor system that collect host information(e.g.:cpu usage, memory, network e
 
 ## Architecture
 
-![image](https://github.com/DarkMetrix/log/blob/master/doc/archetecture.png)
+![image](https://github.com/DarkMetrix/monitor/blob/master/doc/architecture.png)
 
 ## Quick start
 
