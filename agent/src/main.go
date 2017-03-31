@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"os/signal"
+	"net"
 	"time"
 	"errors"
 	"plugin"
@@ -17,41 +18,80 @@ import (
 )
 
 //Init log
-func InitLog(path string) error {
+func InitLog(path string) {
 	logger, err := log.LoggerFromConfigAsFile(path)
 
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	err = log.ReplaceLogger(logger)
 
 	if err != nil {
-		return err
+		panic(err)
+	}
+}
+
+//Get local machine ip
+func getLocalIp() (string, error) {
+	addrs, err := net.InterfaceAddrs()
+
+	if err != nil {
+		log.Warn("Get local ip failed! err:" + err.Error())
+		return "", err
 	}
 
-	return nil
+	for _, addr := range addrs {
+		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String(), nil
+			}
+		}
+	}
+
+	return "", nil
 }
 
 //Init config
-func InitConfig(path string) (*config.Config, error) {
+func InitConfig(path string) *config.Config{
+	log.Info("Initialize monitor_agent configuration from " + path + " ...")
+
 	globalConfig := config.GetConfig()
 
 	if globalConfig == nil {
-		return nil, errors.New("Get global config failed!")
+		panic(errors.New("Get global config failed!"))
 	}
 
 	err := globalConfig.Init(path)
 
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	return globalConfig, nil
+	//Check ip and name, if empty use host name as the name and use one of the local ip as the ip
+	if len(globalConfig.Node.Name) == 0 {
+		globalConfig.Node.Name, err = os.Hostname()
+
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	if len(globalConfig.Node.IP) == 0 {
+		globalConfig.Node.IP, err = getLocalIp()
+
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return globalConfig
 }
 
 //Init agent plugin libraries
-func InitPluginLibs(config *config.Config) error {
+func InitPluginLibs(config *config.Config) {
+	log.Info("Initialize monitor agent plugin libs ...")
+
 	inputs := make(map[string]bool)
 
 	for _, pluginConfig := range config.Inputs {
@@ -63,7 +103,7 @@ func InitPluginLibs(config *config.Config) error {
 		_, err := plugin.Open(pluginConfig.Path)
 
 		if err != nil {
-			return err
+			panic(err)
 		}
 
 		inputs[pluginConfig.Name] = true
@@ -78,7 +118,7 @@ func InitPluginLibs(config *config.Config) error {
 		_, err := plugin.Open(pluginConfig.Path)
 
 		if err != nil {
-			return err
+			panic(err)
 		}
 
 		if len(pluginConfig.Inputs) == 0 {
@@ -93,19 +133,19 @@ func InitPluginLibs(config *config.Config) error {
 			_, ok := inputs[inputName]
 
 			if !ok {
-				return errors.New("'" + pluginConfig.Name + "' output plugin's input plugin '" + inputName + "' not found or not active!")
+				panic(errors.New("'" + pluginConfig.Name + "' output plugin's input plugin '" + inputName + "' not found or not active!"))
 			}
 		}
 	}
-
-	return nil
 }
 
 //Init transfer queue
-func InitTransferQueue(bufferSize int) (*queue.TransferQueue, error) {
+func InitTransferQueue(bufferSize int) *queue.TransferQueue {
+	log.Info("Initialize monitor agent transfer queue ...")
+
 	transfer := queue.NewTransferQueue(bufferSize)
 
-	return transfer, nil
+	return transfer
 }
 
 func main() {
@@ -120,53 +160,25 @@ func main() {
 	} ()
 
 	//Initialize log using configuration from "../conf/log.config"
-	err := InitLog("../conf/log.config")
-
-	if err != nil {
-		log.Warnf("Read config failed! error:%s", err)
-		return
-	}
+	InitLog("../conf/log.config")
 
 	log.Info(time.Now().String(), "Starting monitor agent ... ")
+	log.Info("Version: " + config.Version)
 
 	//Initialize the configuration from "../conf/config.json"
-	log.Info("Initialize monitor_agent configuration from ../conf/config.json ...")
-	config, err := InitConfig("../conf/config.json")
-
-	if err != nil {
-		log.Warnf("Initialize monitor agent configuration failed! error:%s", err)
-		return
-	}
-
-	log.Info("Initialize monitor agent configuration successed! config:", config)
+	config := InitConfig("../conf/config.json")
 
 	//Initialize all plugin libs
-	log.Info("Initialize monitor agent plugin libs ...")
-	err = InitPluginLibs(config)
-
-	if err != nil {
-		log.Warnf("Initialize monitor agent plugin libs failed! error:%s", err)
-		return
-	}
-
-	log.Info("Initialize monitor agent plugin libs successed!")
+	InitPluginLibs(config)
 
 	//Init queue between input plugin and output plugin
-	log.Info("Initialize monitor agent transfer queue ...")
-	transfer, err := InitTransferQueue(config.Node.TransferQueue.BufferSize)
-
-	if err != nil {
-		log.Warnf("Initialize monitor agent transfer queue failed! error:%s", err)
-		return
-	}
-
-	log.Info("Initialize monitor agent transfer queue successed! buffer size:", config.Node.TransferQueue.BufferSize)
+	transfer := InitTransferQueue(config.Node.TransferQueue.BufferSize)
 
 	//Start output plugins
 	log.Info("Initialize monitor agent output plugin ...")
 	outputPluginManager := output.NewOutputPluginManager(config.Node, config.Outputs, transfer)
 
-	err = outputPluginManager.Init()
+	err := outputPluginManager.Init()
 
 	if err != nil {
 		log.Warnf("Initialize monitor agent output plugin failed! error:%s", err)
