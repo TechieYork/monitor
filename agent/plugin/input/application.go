@@ -1,6 +1,7 @@
 package main
 
 import(
+	"fmt"
 	"time"
 	"net"
 	"sync"
@@ -44,11 +45,25 @@ func Init(nodeInfo config.NodeInfo, config map[string]string) error {
 		return errors.New("Listen udp addr failed! error:" + err.Error())
 	}
 
+	err = udpConn.SetReadBuffer(16 * 1024 * 1024)
+
+	if err != nil {
+		return errors.New("Set read buffer 16M failed! error:" + err.Error())
+	}
+
+	count := 0
+
 	go func (conn *net.UDPConn) {
 		data := make([]byte, 4096)
 
 		for {
 			read, _, err := conn.ReadFromUDP(data)
+
+			count++
+
+			if count % 10000 == 0 {
+				fmt.Println("count:", count)
+			}
 
 			if err != nil {
 				continue
