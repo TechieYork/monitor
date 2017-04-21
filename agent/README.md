@@ -267,7 +267,8 @@ func Send(proto *protocol.Proto) error {
 
 See [cihub/seelog](https://github.com/cihub/seelog) to get more information.
 
-##Notice
+## Notice
+
 When collecting application report, if there is high concurrency demand, udp's receive buffer is needed to set a bigger value(In linux you should set the kernel limitation, such as rmem_max etc.). In application plugin, the receive buffer is set to 16M.
 
 
