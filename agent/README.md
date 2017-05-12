@@ -152,7 +152,8 @@ func Send(proto *protocol.Proto) error {
 			"active":true,
 			"config":
 			{
-				"udp_address":"127.0.0.1:5656"
+				"udp_address":"127.0.0.1:5656",
+				"unix_address":"/var/tmp/monitor.sock"
 			}
 		}
 	],
