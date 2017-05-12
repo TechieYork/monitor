@@ -79,7 +79,8 @@
 			"active":true,
 			"config":
 			{
-				"udp_address":"127.0.0.1:5656"
+				"udp_address":"127.0.0.1:5656",
+				"unix_address":"/var/tmp/monitor.sock"
 			}
 		}
 	],
@@ -94,12 +95,12 @@
 				"node":false,
 				"cpu":false,
 				"memory":false,
-				"filesystem":true,
+				"filesystem":false,
 				"net":false,
 				"page":false,
 				"process":false,
 				"interfaces":false,
-				"application":false
+				"application":true
 			},
 			"config":
 			{
@@ -145,7 +146,7 @@
 		{
 			"plugin_name": "influxdb",
 			"plugin_path": "../plugin/output/influxdb.so",
-			"active":true,
+			"active":false,
 			"inputs":
 			{
 				"node":true,
