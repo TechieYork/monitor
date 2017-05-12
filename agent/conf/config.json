@@ -1,8 +1,8 @@
 {
 	"node":
 	{
-		"name":"test",
-		"ip":"10.0.0.1",
+		"name":"",
+		"ip":"",
 		"transfer_queue":
 		{
 			"buffer_size":10000
@@ -33,7 +33,10 @@
 			"plugin_name": "memory",
 			"plugin_path": "../plugin/input/memory.so",
 			"duration": 10,
-			"active":true
+			"active":true,
+			"config":
+			{
+			}
 		},
 		{
 			"plugin_name": "filesystem",
@@ -49,19 +52,28 @@
 			"plugin_name": "net",
 			"plugin_path": "../plugin/input/net.so",
 			"duration": 10,
-			"active":true
+			"active":true,
+			"config":
+			{
+			}
 		},
 		{
 			"plugin_name": "page",
 			"plugin_path": "../plugin/input/page.so",
 			"duration": 10,
-			"active":true
+			"active":true,
+			"config":
+			{
+			}
 		},
 		{
 			"plugin_name": "process",
 			"plugin_path": "../plugin/input/process.so",
 			"duration": 10,
-			"active":true
+			"active":true,
+			"config":
+			{
+			}
 		},
 		{
 			"plugin_name": "interfaces",
@@ -92,14 +104,14 @@
 			"active":true,
 			"inputs":
 			{
-				"node":false,
-				"cpu":false,
-				"memory":false,
-				"filesystem":false,
-				"net":false,
-				"page":false,
-				"process":false,
-				"interfaces":false,
+				"node":true,
+				"cpu":true,
+				"memory":true,
+				"filesystem":true,
+				"net":true,
+				"page":true,
+				"process":true,
+				"interfaces":true,
 				"application":true
 			},
 			"config":
@@ -114,13 +126,13 @@
 			"inputs":
 			{
 				"node":true,
-				"cpu":false,
-				"memory":false,
-				"filesystem":false,
-				"net":false,
-				"page":false,
-				"process":false,
-				"interfaces":false,
+				"cpu":true,
+				"memory":true,
+				"filesystem":true,
+				"net":true,
+				"page":true,
+				"process":true,
+				"interfaces":true,
 				"application":true
 			},
 			"config":

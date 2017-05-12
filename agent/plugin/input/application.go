@@ -81,6 +81,17 @@ func initUdp(addr string) error {
 }
 
 func initUnix(addr string) error {
+	//Remove if unix domain socket exist
+	_, err := os.Stat(addr)
+
+	if err == nil {
+		err = os.Remove(addr)
+
+		if err != nil {
+			return errors.New("Remove unix domain socket file failed! error:" + err.Error())
+		}
+	}
+
 	unixAddr, err := net.ResolveUnixAddr("unixgram", addr)
 
 	if nil != err {

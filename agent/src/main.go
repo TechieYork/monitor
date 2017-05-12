@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 	"errors"
+	"flag"
 	"plugin"
 
 	"github.com/DarkMetrix/monitor/agent/src/config"
@@ -54,6 +55,15 @@ func getLocalIp() (string, error) {
 
 //Init config
 func InitConfig(path string) *config.Config{
+	//Parse flag
+	configPath := flag.String("config_path", "", "The config file path, default:''(empty)")
+
+	flag.Parse()
+
+	if len(*configPath) != 0 {
+		path = *configPath
+	}
+
 	log.Info("Initialize monitor_agent configuration from " + path + " ...")
 
 	globalConfig := config.GetConfig()
