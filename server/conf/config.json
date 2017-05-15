@@ -3,7 +3,7 @@
 		"addr":":9111"
 	},
 	"influxdb":{
-		"addr":"http://172.16.101.128:8086",
+		"addr":"http://172.16.20.20:8086",
 		"db_name":"dark_metrix"
 	}
 }
