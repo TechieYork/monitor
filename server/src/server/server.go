@@ -6,19 +6,22 @@ import (
 	"github.com/DarkMetrix/monitor/server/src/config"
 	"github.com/DarkMetrix/monitor/server/src/protocol"
 
-	"github.com/gin-gonic/gin"
+	log "github.com/cihub/seelog"
+
 	"github.com/DarkMetrix/monitor/server/src/utils"
+	"github.com/gin-gonic/gin"
 )
 
 type MonitorServer struct {
-	config config.Config                                //Config information
-	influxdb utils.InfluxDBUtils						//Influxdb utils
+	config   config.Config       //Config information
+	influxdb utils.InfluxDBUtils //Influxdb utils
+	mongodb  utils.MongoDBUtils  //Mongodb utils
 }
 
 //New Config
 func NewMonitorServer(config *config.Config) *MonitorServer {
 	return &MonitorServer{
-		config:*config,
+		config: *config,
 	}
 }
 
@@ -33,8 +36,18 @@ func (server *MonitorServer) InitInfluxdb() error {
 	return nil
 }
 
+func (server *MonitorServer) InitMongodb() error {
+	err := server.mongodb.Init(server.config.Mongodb.Address, server.config.Mongodb.DBName)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //Run http server
-func (server *MonitorServer) Run () error {
+func (server *MonitorServer) Run() error {
 	var err error
 
 	//Init influxdb
@@ -44,13 +57,28 @@ func (server *MonitorServer) Run () error {
 		return err
 	}
 
+	//Init mongodb
+	err = server.InitMongodb()
+
+	if err != nil {
+		return err
+	}
+
+	go server.SyncMetaDataToMongodb()
+
 	//Begin serve
 	http := gin.Default()
 
 	http.GET("/monitor/nodes", server.GetNodes)
-	http.GET("/monitor/nodes/instances", server.GetNodeInstances)
-	http.GET("/monitor/nodes/metrix", server.GetNodeMetrix)
-	http.GET("/monitor/application/instances", server.GetApplicationInstances)
+	http.GET("/monitor/nodes/metrix/cpu", server.GetNodeMerixCpu)
+	http.GET("/monitor/nodes/metrix/memory", server.GetNodeMerixMemory)
+	http.GET("/monitor/nodes/metrix/net", server.GetNodeMerixNet)
+	http.GET("/monitor/nodes/metrix/page", server.GetNodeMerixPage)
+	http.GET("/monitor/nodes/metrix/process", server.GetNodeMerixProcess)
+	http.GET("/monitor/nodes/metrix/filesystem", server.GetNodeMerixFileSystem)
+	http.GET("/monitor/nodes/metrix/interfaces", server.GetNodeMerixInterfaces)
+	http.GET("/monitor/application/instances/mapping", server.GetApplicationInstancesMapping)
+	http.GET("/monitor/application/nodes/mapping", server.GetNodesMapping)
 	http.GET("/monitor/application/metrix", server.GetApplicationMetrix)
 
 	err = http.Run(server.config.Server.Address)
@@ -62,7 +90,7 @@ func (server *MonitorServer) Run () error {
 	return nil
 }
 
-//Http interface get_nodes
+//Http interface /monitor/nodes
 func (server *MonitorServer) GetNodes(context *gin.Context) {
 	//Unmarshal json and check params
 	var request protocol.GetNodesRequest
@@ -70,49 +98,24 @@ func (server *MonitorServer) GetNodes(context *gin.Context) {
 	request.IP = context.Query("ip")
 
 	if len(request.IP) == 0 {
-		context.JSON(400, gin.H{"message":"param invalid!"})
+		context.JSON(400, gin.H{"message": "param invalid!"})
 		return
 	}
 
-	//Get nodes informations
-	nodes, err := server.influxdb.GetNodes(request.IP)
+	hosts, err := server.mongodb.GetNode(request.IP)
 
 	if err != nil {
-		context.JSON(500, gin.H{"message":err.Error()})
+		context.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
 
 	//Reply
-	context.JSON(200, gin.H{"message":"success",
-		"data":gin.H{"nodes":nodes, "server_time":time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")}})
+	context.JSON(200, gin.H{"message": "success",
+		"data": gin.H{"nodes": hosts, "server_time": time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")}})
 }
 
-//Http interface get_node_instances
-func (server *MonitorServer) GetNodeInstances(context *gin.Context) {
-	//Unmarshal json and check params
-	var request protocol.GetNodeInstancesRequest
-
-	request.IP = context.Query("ip")
-
-	if len(request.IP) == 0 {
-		context.JSON(400, gin.H{"message":"param invalid!"})
-		return
-	}
-
-	//Get node instances
-	collection, err := server.influxdb.GetNodeInstances(request.IP)
-
-	if err != nil {
-		context.JSON(500, gin.H{"message":err.Error()})
-		return
-	}
-
-	//Reply
-	context.JSON(200, gin.H{"message":"success", "data":collection})
-}
-
-//Http interface get_node_metrix
-func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
+//Http interface /monitor/nodes/metrix/cpu
+func (server *MonitorServer) GetNodeMerixCpu(context *gin.Context) {
 	//Unmarshal json and check params
 	var request protocol.GetNodeMetrixRequest
 
@@ -120,42 +123,209 @@ func (server *MonitorServer) GetNodeMetrix(context *gin.Context) {
 	request.Time = context.Query("time")
 
 	if len(request.IP) == 0 || len(request.Time) == 0 {
-		context.JSON(400, gin.H{"message":"param invalid!"})
+		context.JSON(400, gin.H{"message": "param invalid!"})
 		return
 	}
 
 	//Get node metrix
-	metrixes, err := server.influxdb.GetNodeMetrix(request.IP, request.Time)
+	metrixes, err := server.influxdb.GetNodeMetrixCpu(request.IP, request.Time)
 
 	if err != nil {
-		context.JSON(500, gin.H{"message":err.Error()})
+		context.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
 
-	context.JSON(200, gin.H{"message":"success", "data":gin.H{"metrix":metrixes}})
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
 }
 
-//Http interface get_application_instances
-func (server *MonitorServer) GetApplicationInstances(context *gin.Context) {
+//Http interface /monitor/nodes/metrix/memory
+func (server *MonitorServer) GetNodeMerixMemory(context *gin.Context) {
 	//Unmarshal json and check params
-	var request protocol.GetApplicationInstancesRequest
+	var request protocol.GetNodeMetrixRequest
 
 	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
 
-	if len(request.IP) == 0 {
-		context.JSON(400, gin.H{"message":"param invalid!"})
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixMemory(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/nodes/metrix/net
+func (server *MonitorServer) GetNodeMerixNet(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodeMetrixRequest
+
+	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
+
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixNet(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/nodes/metrix/page
+func (server *MonitorServer) GetNodeMerixPage(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodeMetrixRequest
+
+	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
+
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixPage(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/nodes/metrix/process
+func (server *MonitorServer) GetNodeMerixProcess(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodeMetrixRequest
+
+	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
+
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixProcess(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/nodes/metrix/filesystem
+func (server *MonitorServer) GetNodeMerixFileSystem(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodeMetrixRequest
+
+	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
+
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixFileSystem(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/nodes/metrix/interfaces
+func (server *MonitorServer) GetNodeMerixInterfaces(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodeMetrixRequest
+
+	request.IP = context.Query("ip")
+	request.Time = context.Query("time")
+
+	if len(request.IP) == 0 || len(request.Time) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get node metrix
+	metrixes, err := server.influxdb.GetNodeMetrixInterfaces(request.IP, request.Time)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
+}
+
+//Http interface /monitor/application/instances/mapping
+func (server *MonitorServer) GetApplicationInstancesMapping(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetApplicationInstancesMappingRequest
+
+	request.Instance = context.Query("instance")
+
+	if len(request.Instance) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
 		return
 	}
 
 	//Get application instances
-	collection, err := server.influxdb.GetApplicationInstances(request.IP)
+	mapping, err := server.mongodb.GetApplicationInstanceNodeMappingByInstance(request.Instance)
 
 	if err != nil {
-		context.JSON(500, gin.H{"message":err.Error()})
+		context.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
 
-	context.JSON(200, gin.H{"message":"success", "data":collection})
+	context.JSON(200, gin.H{"message": "success", "data": mapping})
+}
+
+//Http interface /monitor/application/nodes/mapping
+func (server *MonitorServer) GetNodesMapping(context *gin.Context) {
+	//Unmarshal json and check params
+	var request protocol.GetNodesMappingRequest
+
+	request.IP = context.Query("ip")
+
+	if len(request.IP) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
+		return
+	}
+
+	//Get application instances
+	mapping, err := server.mongodb.GetApplicationInstanceNodeMappingByIP(request.IP)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	context.JSON(200, gin.H{"message": "success", "data": mapping})
 }
 
 //Http interface get_application_metrix
@@ -167,8 +337,8 @@ func (server *MonitorServer) GetApplicationMetrix(context *gin.Context) {
 	request.Time = context.Query("time")
 	request.Instance = context.Query("instance")
 
-	if len(request.Time) == 0 || len(request.IP) == 0 || len(request.Instance) == 0{
-		context.JSON(400, gin.H{"message":"param invalid!"})
+	if len(request.Time) == 0 || len(request.IP) == 0 || len(request.Instance) == 0 {
+		context.JSON(400, gin.H{"message": "param invalid!"})
 		return
 	}
 
@@ -176,10 +346,100 @@ func (server *MonitorServer) GetApplicationMetrix(context *gin.Context) {
 	metrixes, err := server.influxdb.GetApplicationMetrix(request.IP, request.Time, request.Instance)
 
 	if err != nil {
-		context.JSON(500, gin.H{"message":err.Error()})
+		context.JSON(500, gin.H{"message": err.Error()})
 		return
 	}
 
-	context.JSON(200, gin.H{"message":"success", "data":gin.H{"metrix":metrixes}})
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"metrix": metrixes}})
 }
 
+//Sync meta data from influxdb to mongodb
+func (server *MonitorServer) SyncMetaDataToMongodb() {
+	go server.SyncMetaDataNode(10 * time.Second)
+	go server.SyncMetaDataApplication(10 * time.Second, "1m")
+}
+
+//Sync node info
+func (server *MonitorServer) SyncMetaDataNode(duration time.Duration) {
+	for {
+		select {
+		case <-time.After(duration):
+			nodes, err := server.influxdb.GetNodes("all")
+
+			if err != nil {
+				log.Warn("GetNodes from influxdb failed! error:", err.Error())
+				continue
+			}
+
+			for _, node := range nodes {
+				var nodeInMongo protocol.NodeInMongo
+
+				nodeInMongo.Info.NodeName = node.Info["node_name"]
+				nodeInMongo.Info.NodeIP = node.Info["node_ip"]
+				nodeInMongo.Info.HostName = node.Info["host_name"]
+				nodeInMongo.Info.Platform = node.Info["platform"]
+				nodeInMongo.Info.OS = node.Info["os"]
+				nodeInMongo.Info.OSVersion = node.Info["os_version"]
+				nodeInMongo.Info.OSRelease = node.Info["os_release"]
+
+				nodeInMongo.Info.MaxCPUs = node.Info["max_cpus"]
+				nodeInMongo.Info.NCPUs = node.Info["ncpus"]
+
+				nodeInMongo.Info.Bitwith = node.Info["bitwidth"]
+
+				nodeInMongo.Info.Time = node.Info["time"]
+
+				err = server.mongodb.AddNode(nodeInMongo)
+
+				if err != nil {
+					log.Warn("AddNode to mongo db failed! error:", err.Error())
+					continue
+				}
+			}
+		}
+	}
+}
+
+//Sync application info
+func (server *MonitorServer) SyncMetaDataApplication(duration time.Duration, period string) {
+	for {
+		select {
+		case <-time.After(duration):
+			mapping, err := server.influxdb.GetApplicationInstancesNodeMapping(period)
+
+			log.Info(mapping)
+
+			if err != nil {
+				log.Warn("GetApplicationInstancesNodeMapping from influxdb failed! error:", err.Error())
+				continue
+			}
+
+			for ip, instance := range mapping {
+				var instanceInMongo protocol.ApplicationInstanceInMongo
+
+				instanceInMongo.Info.Name = instance
+
+				//Add application instance information (Using upsert)
+				err := server.mongodb.AddApplicationInstance(instanceInMongo)
+
+				if err != nil {
+					log.Warn("AddApplicationInstance to mongo db failed! error:", err.Error())
+					continue
+				}
+
+				//Add instance and node mapping
+				var instanceNodeMapping protocol.ApplicationInstanceNodeMapping
+
+				instanceNodeMapping.Info.NodeIP = ip
+				instanceNodeMapping.Info.Instance = instance
+
+				err = server.mongodb.AddApplicationInstanceNodeMapping(instanceNodeMapping)
+
+				if err != nil {
+					log.Warn("AddApplicationInstanceNodeMapping to mongo db failed! error:", err.Error())
+					continue
+				}
+			}
+		}
+	}
+}

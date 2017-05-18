@@ -11,12 +11,12 @@ import (
 )
 
 type InfluxDBUtils struct {
-	client client.Client                        //Influxdb client connection
-	name string									//DB name
+	client client.Client //Influxdb client connection
+	name   string        //DB name
 }
 
 //Init influxdb
-func (db *InfluxDBUtils) Init (address string, DBName string) error {
+func (db *InfluxDBUtils) Init(address string, DBName string) error {
 	var err error
 
 	db.client, err = client.NewHTTPClient(client.HTTPConfig{
@@ -41,12 +41,12 @@ func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.Node, error) {
 
 	if ip == "all" {
 		query = client.Query{
-			Command: "SELECT * FROM node GROUP BY node_ip ORDER BY time desc LIMIT 1",
+			Command:  "SELECT * FROM node GROUP BY node_ip ORDER BY time desc LIMIT 1",
 			Database: db.name,
 		}
 	} else {
 		query = client.Query{
-			Command: fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip ORDER BY time desc LIMIT 1", ip),
+			Command:  fmt.Sprintf("SELECT * FROM node WHERE node_ip = '%s' GROUP BY node_ip ORDER BY time desc LIMIT 1", ip),
 			Database: db.name,
 		}
 	}
@@ -100,11 +100,11 @@ func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.Node, error) {
 	return nodes, nil
 }
 
-//Get node instances
+//Get node instances (Not using)
 func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, error) {
 	//Get all measurements
 	query := client.Query{
-		Command: "SHOW MEASUREMENTS",
+		Command:  "SHOW MEASUREMENTS",
 		Database: db.name,
 	}
 
@@ -130,7 +130,7 @@ func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, er
 					for _, m := range val {
 						measurement := fmt.Sprintf("%s", m)
 
-						if measurement== "application" {
+						if measurement == "application" {
 							continue
 						}
 
@@ -147,12 +147,12 @@ func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, er
 
 		if ip == "all" {
 			query = client.Query{
-				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\"", key),
+				Command:  fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\"", key),
 				Database: db.name,
 			}
 		} else {
 			query = client.Query{
-				Command: fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\" WHERE node_ip = '%s'", key, ip),
+				Command:  fmt.Sprintf("SHOW TAG VALUES FROM \"%s\" WITH KEY = \"instance\" WHERE node_ip = '%s'", key, ip),
 				Database: db.name,
 			}
 		}
@@ -193,18 +193,71 @@ func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, er
 	return collection, nil
 }
 
-//Get node metrix
-func (db *InfluxDBUtils) GetNodeMetrix(ip string, time string) (map[string][]client.Result, error) {
-	//Get all measurements
+//Get node metrix (Not using)
+func (db *InfluxDBUtils) GetNodeMetrix(ip string, time string, measurement string) (map[string][]client.Result, error) {
+	metrixes := make(map[string][]client.Result)
+
+	var method string
+	var groupby string
+	groupby = ""
+
+	switch measurement {
+	case "cpu":
+		method = "MEAN"
+		break
+	case "memory":
+		method = "MEAN"
+		break
+	case "filesystem":
+		method = "MAX"
+		groupby = ", mount_point, device_name "
+		break
+	case "net":
+		method = "SUM"
+		break
+	case "page":
+		method = "SUM"
+		break
+	case "process":
+		method = "MAX"
+		break
+	case "interfaces":
+		groupby = ", interface "
+		method = "MEAN"
+		break
+	default:
+		return nil, errors.New("Node measurement not supported! measurement:" + measurement)
+	}
+
+	var interval string
+
+	switch time {
+	case "1h":
+		interval = "1m"
+	case "1d":
+		interval = "1m"
+	case "7d":
+		interval = "5m"
+	case "30d":
+		interval = "10m"
+	case "90d":
+		interval = "30m"
+	default:
+		interval = "5m"
+	}
+
 	query := client.Query{
-		Command: "SHOW MEASUREMENTS",
+		Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance%s ORDER BY time desc",
+			method, measurement, time, ip, interval, groupby),
 		Database: db.name,
 	}
+
+	log.Info("Query string:", query.Database, "-> ", query.Command)
 
 	response, err := db.client.Query(query)
 
 	if err != nil {
-		log.Warn("Query show measurements failed! error:", err)
+		log.Warn("Query select failed! error:", err)
 		return nil, err
 	}
 
@@ -213,104 +266,44 @@ func (db *InfluxDBUtils) GetNodeMetrix(ip string, time string) (map[string][]cli
 		return nil, response.Error()
 	}
 
-	//Get all instances except application
-	collection := protocol.NewNodeInstance()
-
-	for _, result := range response.Results {
-		for _, serie := range result.Series {
-			if serie.Name == "measurements" {
-				for _, val := range serie.Values {
-					for _, m := range val {
-						measurement := fmt.Sprintf("%s", m)
-
-						if measurement == "application" {
-							continue
-						}
-
-						collection.Measurements[measurement] = []string{}
-					}
-				}
-			}
-		}
-	}
-
-	metrixes := make(map[string][]client.Result)
-
-	//Get all metrix except application
-	for measurement := range collection.Measurements {
-		var method string
-		var groupby string
-		groupby = ""
-
-		switch measurement {
-		case "cpu":
-			method = "MEAN"
-			break
-		case "memory":
-			method = "MEAN"
-			break
-		case "filesystem":
-			method = "MAX"
-			groupby = ", mount_point, device_name "
-			break
-		case "net":
-			method = "SUM"
-			break
-		case "page":
-			method = "SUM"
-			break
-		case "process":
-			method = "MAX"
-			break
-		case "interfaces":
-			groupby = ", interface "
-			method = "MEAN"
-			break
-		default:
-			method = "SUM"
-		}
-
-		var interval string
-
-		switch time {
-		case "1h":
-			interval = "1m"
-		case "1d":
-			interval = "1m"
-		case "7d":
-			interval = "5m"
-		case "30d":
-			interval = "10m"
-		case "90d":
-			interval = "30m"
-		default:
-			interval = "5m"
-		}
-
-		query := client.Query{
-			Command: fmt.Sprintf("SELECT %s(value) FROM %s WHERE time > now() - %s AND node_ip = '%s' GROUP BY time(%s), instance%s ORDER BY time desc",
-				method, measurement, time, ip, interval, groupby),
-			Database: db.name,
-		}
-
-		log.Info("Query string:", query.Database, "-> ", query.Command)
-
-		response, err := db.client.Query(query)
-
-		if err != nil {
-			log.Warn("Query select failed! error:", err)
-			return nil, err
-		}
-
-		if response.Error() != nil {
-			log.Warn("Query response failed! error:", err)
-			return nil, response.Error()
-		}
-
-		metrixes[measurement] = response.Results
-	}
+	metrixes[measurement] = response.Results
 
 	return metrixes, nil
+}
+
+//Get cpu metrix
+func (db *InfluxDBUtils) GetNodeMetrixCpu(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "cpu")
+}
+
+//Get memory metrix
+func (db *InfluxDBUtils) GetNodeMetrixMemory(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "memory")
+}
+
+//Get net metrix
+func (db *InfluxDBUtils) GetNodeMetrixNet(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "net")
+}
+
+//Get page metrix
+func (db *InfluxDBUtils) GetNodeMetrixPage(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "page")
+}
+
+//Get process metrix
+func (db *InfluxDBUtils) GetNodeMetrixProcess(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "process")
+}
+
+//Get file system metrix
+func (db *InfluxDBUtils) GetNodeMetrixFileSystem(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "filesystem")
+}
+
+//Get interfaces metrix
+func (db *InfluxDBUtils) GetNodeMetrixInterfaces(ip string, time string) (map[string][]client.Result, error) {
+	return db.GetNodeMetrix(ip, time, "interfaces")
 }
 
 //Get application instances
@@ -319,12 +312,12 @@ func (db *InfluxDBUtils) GetApplicationInstances(ip string) (*protocol.Applicati
 
 	if ip == "all" {
 		query = client.Query{
-			Command: "SHOW TAG VALUES FROM application WITH KEY = \"instance\"",
+			Command:  "SHOW TAG VALUES FROM application WITH KEY = \"instance\"",
 			Database: db.name,
 		}
 	} else {
 		query = client.Query{
-			Command: fmt.Sprintf("SHOW TAG VALUES FROM application WITH KEY = \"instance\" WHERE node_ip = '%s'", ip),
+			Command:  fmt.Sprintf("SHOW TAG VALUES FROM application WITH KEY = \"instance\" WHERE node_ip = '%s'", ip),
 			Database: db.name,
 		}
 	}
@@ -365,6 +358,60 @@ func (db *InfluxDBUtils) GetApplicationInstances(ip string) (*protocol.Applicati
 	}
 
 	return collection, nil
+}
+
+//Get application instances and node mapping
+func (db *InfluxDBUtils) GetApplicationInstancesNodeMapping(time string) (map[string]string, error) {
+	var query client.Query
+
+	query = client.Query{
+		Command: fmt.Sprintf("SELECT * FROM application WHERE time > now() - %s group by node_ip, instance", time),
+		Database: db.name,
+	}
+
+	log.Info("Query string:", query.Database, "-> ", query.Command)
+
+	response, err := db.client.Query(query)
+
+	if err != nil {
+		log.Warn("Query application instances and nodes mapping failed! error:", err)
+		return nil, err
+	}
+
+	if response.Error() != nil {
+		log.Warn("Query response failed! error:", response.Error().Error())
+		return nil, response.Error()
+	}
+
+	//Get all instances except application
+	mapping := make(map[string]string)
+
+	for _, result := range response.Results {
+		for _, serie := range result.Series {
+			if serie.Name == "application" {
+				var nodeIP string
+				var applicationInstance string
+
+				for key, value := range serie.Tags {
+					if key == "node_ip" {
+						nodeIP = value
+					}
+
+					if key == "instance" {
+						applicationInstance = value
+					}
+				}
+
+				if len(nodeIP) == 0 || len(applicationInstance) == 0 {
+					continue
+				}
+
+				mapping[nodeIP] = applicationInstance
+			}
+		}
+	}
+
+	return mapping, nil
 }
 
 //Get application metrix

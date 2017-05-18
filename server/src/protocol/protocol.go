@@ -7,16 +7,16 @@ type GetNodesRequest struct {
 	IP string `json:"ip"`
 }
 
-type GetNodeInstancesRequest struct {
-	IP string `json:"ip"`
-}
-
 type GetNodeMetrixRequest struct {
 	IP string `json:"ip"`
 	Time string `json:"time"`
 }
 
-type GetApplicationInstancesRequest struct {
+type GetApplicationInstancesMappingRequest struct {
+	Instance string `json:"instance"`
+}
+
+type GetNodesMappingRequest struct {
 	IP string `json:"ip"`
 }
 
@@ -55,6 +55,33 @@ func NewNode() *Node{
 }
 
 /*
+ * Node in mongo
+ */
+type NodeInMongo struct {
+	Info NodeInfo `json:"info" bson:"info"`
+	ApplicationInstances map[string]string `json:"application_instances" bson:"application_instances"`
+}
+
+type NodeInfo struct {
+	NodeName string `json:"node_name" bson:"node_name"`
+	NodeIP string `json:"node_ip" bson:"node_ip"`
+
+	HostName string `json:"host_name" bson:"host_name"`
+
+	Platform string `json:"platform" bson:"platform"`
+	OS string `json:"os" bson:"os"`
+	OSVersion string `json:"os_version" bson:"os_version"`
+	OSRelease string `json:"os_release" bson:"os_release"`
+
+	MaxCPUs	string `json:"max_cpus" bson:"max_cpus"`
+	NCPUs string `json:"ncpus" bson:"ncpus"`
+
+	Bitwith string `json:"bitwidth" bson:"bitwidth"`
+
+	Time string `json:"time" bson:"time"`
+}
+
+/*
  * Node instance
  */
 type NodeInstance struct {
@@ -81,22 +108,25 @@ func NewApplicationInstance() *ApplicationInstance {
 }
 
 /*
- * Metrix
+ * Application instance in mongodb
  */
-type Metrix struct {
-	Serie string `json:"serie"`
-	Instance string `json:"instance"`
-	TimeBegin string `json:"time_begin"`
-	Interval string `json:"interval"`
-	Points []float64 `json:"points"`
+type ApplicationInstanceInMongo struct {
+	Info ApplicationInstanceInfo `json:"info" bson:"info"`
 }
 
-func NewMetrix() *Metrix {
-	return &Metrix{
-		Serie: "null",
-		Instance: "null",
-		TimeBegin: "null",
-		Interval: "null",
-		Points: []float64{},
-	}
+type ApplicationInstanceInfo struct {
+	Name string `json:"name" bson:"name"`
+}
+
+/*
+ * Application instance & node mapping
+ */
+type ApplicationInstanceNodeMapping struct {
+	Info ApplicationInstanceNodeMappingInfo `json:"info" bson:"info"`
+}
+
+type ApplicationInstanceNodeMappingInfo struct {
+	Key string `json:"key" bson:"key"`
+	Instance string `json:"instance" bson:"instance"`
+	NodeIP string `json:"node_ip" bson:"node_ip"`
 }
