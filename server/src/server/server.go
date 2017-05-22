@@ -81,6 +81,24 @@ func (server *MonitorServer) Run() error {
 	http.GET("/monitor/application/nodes/mapping", server.GetNodesMapping)
 	http.GET("/monitor/application/metrix", server.GetApplicationMetrix)
 
+	http.POST("/monitor/view/project", server.AddProject)
+	http.GET("/monitor/view/project", server.GetProject)
+	http.PUT("/monitor/view/project", server.SetProject)
+	http.DELETE("/monitor/view/project", server.DelProject)
+
+	http.POST("/monitor/view/project/service", server.AddService)
+	http.GET("/monitor/view/project/service", server.GetService)
+	http.PUT("/monitor/view/project/service", server.SetService)
+	http.DELETE("/monitor/view/project/service", server.DelService)
+
+	http.POST("/monitor/view/project/service/module", server.AddModule)
+	http.GET("/monitor/view/project/service/module", server.GetModule)
+	http.PUT("/monitor/view/project/service/module", server.SetModule)
+	http.DELETE("/monitor/view/project/service/module", server.DelModule)
+
+	http.POST("/monitor/view/project/service/module/instance", server.AddApplicationInstance)
+	http.PUT("/monitor/view/project/service/module/instance", server.DelApplicationInstance)
+
 	err = http.Run(server.config.Server.Address)
 
 	if err != nil {
@@ -110,8 +128,7 @@ func (server *MonitorServer) GetNodes(context *gin.Context) {
 	}
 
 	//Reply
-	context.JSON(200, gin.H{"message": "success",
-		"data": gin.H{"nodes": hosts, "server_time": time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")}})
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"nodes": hosts, "server_time": time.Now().UTC().Format("2006-01-02T15:04:05.000000000Z")}})
 }
 
 //Http interface /monitor/nodes/metrix/cpu
@@ -372,22 +389,22 @@ func (server *MonitorServer) SyncMetaDataNode(duration time.Duration) {
 			}
 
 			for _, node := range nodes {
-				var nodeInMongo protocol.NodeInMongo
+				var nodeInMongo protocol.Node
 
-				nodeInMongo.Info.NodeName = node.Info["node_name"]
-				nodeInMongo.Info.NodeIP = node.Info["node_ip"]
-				nodeInMongo.Info.HostName = node.Info["host_name"]
-				nodeInMongo.Info.Platform = node.Info["platform"]
-				nodeInMongo.Info.OS = node.Info["os"]
-				nodeInMongo.Info.OSVersion = node.Info["os_version"]
-				nodeInMongo.Info.OSRelease = node.Info["os_release"]
+				nodeInMongo.NodeName = node.Info["node_name"]
+				nodeInMongo.NodeIP = node.Info["node_ip"]
+				nodeInMongo.HostName = node.Info["host_name"]
+				nodeInMongo.Platform = node.Info["platform"]
+				nodeInMongo.OS = node.Info["os"]
+				nodeInMongo.OSVersion = node.Info["os_version"]
+				nodeInMongo.OSRelease = node.Info["os_release"]
 
-				nodeInMongo.Info.MaxCPUs = node.Info["max_cpus"]
-				nodeInMongo.Info.NCPUs = node.Info["ncpus"]
+				nodeInMongo.MaxCPUs = node.Info["max_cpus"]
+				nodeInMongo.NCPUs = node.Info["ncpus"]
 
-				nodeInMongo.Info.Bitwith = node.Info["bitwidth"]
+				nodeInMongo.Bitwith = node.Info["bitwidth"]
 
-				nodeInMongo.Info.Time = node.Info["time"]
+				nodeInMongo.Time = node.Info["time"]
 
 				err = server.mongodb.AddNode(nodeInMongo)
 
@@ -415,9 +432,9 @@ func (server *MonitorServer) SyncMetaDataApplication(duration time.Duration, per
 			}
 
 			for ip, instance := range mapping {
-				var instanceInMongo protocol.ApplicationInstanceInMongo
+				var instanceInMongo protocol.ApplicationInstance
 
-				instanceInMongo.Info.Name = instance
+				instanceInMongo.Name = instance
 
 				//Add application instance information (Using upsert)
 				err := server.mongodb.AddApplicationInstance(instanceInMongo)
@@ -430,8 +447,8 @@ func (server *MonitorServer) SyncMetaDataApplication(duration time.Duration, per
 				//Add instance and node mapping
 				var instanceNodeMapping protocol.ApplicationInstanceNodeMapping
 
-				instanceNodeMapping.Info.NodeIP = ip
-				instanceNodeMapping.Info.Instance = instance
+				instanceNodeMapping.NodeIP = ip
+				instanceNodeMapping.Instance = instance
 
 				err = server.mongodb.AddApplicationInstanceNodeMapping(instanceNodeMapping)
 
@@ -442,4 +459,268 @@ func (server *MonitorServer) SyncMetaDataApplication(duration time.Duration, per
 			}
 		}
 	}
+}
+
+//Add project
+func (server *MonitorServer) AddProject(context *gin.Context) {
+	//Unmarshal json body and check params
+	var project protocol.Project
+
+	if context.BindJSON(&project) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.AddProject(project)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Get project
+func (server *MonitorServer) GetProject(context *gin.Context) {
+	//Unmarshal json and check params
+	project := context.Query("project")
+
+	projects, err := server.mongodb.GetProject(project)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"projects":projects}})
+}
+
+//Set project
+func (server *MonitorServer) SetProject(context *gin.Context) {
+	//Unmarshal json body and check params
+	var project protocol.Project
+
+	if context.BindJSON(&project) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.SetProject(project)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Del project
+func (server *MonitorServer) DelProject(context *gin.Context) {
+	//Unmarshal json body and check params
+	project := context.Query("project")
+
+	err := server.mongodb.DelProject(project)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Add service
+func (server *MonitorServer) AddService(context *gin.Context) {
+	//Unmarshal json body and check params
+	var service protocol.Service
+
+	if context.BindJSON(&service) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.AddService(service.Project, service)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Get service
+func (server *MonitorServer) GetService(context *gin.Context) {
+	//Unmarshal json and check params
+	project := context.Query("project")
+	service := context.Query("service")
+
+	services, err := server.mongodb.GetService(project, service)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"services":services}})
+}
+
+//Set service
+func (server *MonitorServer) SetService(context *gin.Context) {
+	//Unmarshal json body and check params
+	var service protocol.Service
+
+	if context.BindJSON(&service) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.SetService(service.Project, service)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Del service
+func (server *MonitorServer) DelService(context *gin.Context) {
+	//Unmarshal json body and check params
+	project := context.Query("project")
+	service := context.Query("service")
+
+	err := server.mongodb.DelService(project, service)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Add module
+func (server *MonitorServer) AddModule(context *gin.Context) {
+	//Unmarshal json body and check params
+	var module protocol.Module
+
+	if context.BindJSON(&module) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.AddModule(module.Project, module.Service, module)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Get module
+func (server *MonitorServer) GetModule(context *gin.Context) {
+	//Unmarshal json and check params
+	project := context.Query("project")
+	service := context.Query("service")
+	module := context.Query("module")
+
+	modules, err := server.mongodb.GetModule(project, service, module)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success", "data": gin.H{"modules":modules}})
+}
+
+//Set module
+func (server *MonitorServer) SetModule(context *gin.Context) {
+	//Unmarshal json body and check params
+	var module protocol.Module
+
+	if context.BindJSON(&module) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.SetModule(module.Project, module.Service, module)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Del module
+func (server *MonitorServer) DelModule(context *gin.Context) {
+	//Unmarshal json body and check params
+	project := context.Query("project")
+	service := context.Query("service")
+	module := context.Query("module")
+
+	err := server.mongodb.DelModule(project, service, module)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Add application instance
+func (server *MonitorServer) AddApplicationInstance(context *gin.Context) {
+	//Unmarshal json body and check params
+	var module protocol.Module
+
+	if context.BindJSON(&module) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.AddApplicationInstancesToModule(module.Project, module.Service, module.Name, module.Instances)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Del application instance
+func (server *MonitorServer) DelApplicationInstance(context *gin.Context) {
+	//Unmarshal json body and check params
+	var module protocol.Module
+
+	if context.BindJSON(&module) != nil {
+		context.JSON(500, gin.H{"message": "json body invalid!"})
+		return
+	}
+
+	err := server.mongodb.DelApplicationInstancesFromModule(module.Project, module.Service, module.Name, module.Instances)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success"})
 }

@@ -42,27 +42,48 @@ func NewPageInfo() *PageInfo {
 }
 
 /*
- * Node
+ * Node using map to save info
  */
-type Node struct {
+type NodeMapInfo struct {
 	Info map[string]string `json:"info"`
 }
 
-func NewNode() *Node{
-	return &Node{
+func NewNodeMapInfo() *NodeMapInfo{
+	return &NodeMapInfo{
 		Info: make(map[string]string),
 	}
 }
 
 /*
- * Node in mongo
+ * Node instance using map to save info
  */
-type NodeInMongo struct {
-	Info NodeInfo `json:"info" bson:"info"`
-	ApplicationInstances map[string]string `json:"application_instances" bson:"application_instances"`
+type NodeInstanceMapInfo struct {
+	Measurements map[string][]string `json:"measurements"`
 }
 
-type NodeInfo struct {
+func NewNodeInstanceMapInfo() *NodeInstanceMapInfo {
+	return &NodeInstanceMapInfo{
+		Measurements:make(map[string][]string),
+	}
+}
+
+/*
+ * Application instance using map to save info
+ */
+type ApplicationInstanceMapInfo struct {
+	Measurements map[string][]string `json:"measurements"`
+}
+
+func NewApplicationInstanceMapInfo() *ApplicationInstanceMapInfo {
+	return &ApplicationInstanceMapInfo{
+		Measurements:make(map[string][]string),
+	}
+}
+
+/*
+ * Node
+ */
+type Node struct {
 	NodeName string `json:"node_name" bson:"node_name"`
 	NodeIP string `json:"node_ip" bson:"node_ip"`
 
@@ -82,39 +103,9 @@ type NodeInfo struct {
 }
 
 /*
- * Node instance
- */
-type NodeInstance struct {
-	Measurements map[string][]string `json:"measurements"`
-}
-
-func NewNodeInstance() *NodeInstance {
-	return &NodeInstance{
-		Measurements:make(map[string][]string),
-	}
-}
-
-/*
  * Application instance
  */
 type ApplicationInstance struct {
-	Measurements map[string][]string `json:"measurements"`
-}
-
-func NewApplicationInstance() *ApplicationInstance {
-	return &ApplicationInstance{
-		Measurements:make(map[string][]string),
-	}
-}
-
-/*
- * Application instance in mongodb
- */
-type ApplicationInstanceInMongo struct {
-	Info ApplicationInstanceInfo `json:"info" bson:"info"`
-}
-
-type ApplicationInstanceInfo struct {
 	Name string `json:"name" bson:"name"`
 }
 
@@ -122,11 +113,26 @@ type ApplicationInstanceInfo struct {
  * Application instance & node mapping
  */
 type ApplicationInstanceNodeMapping struct {
-	Info ApplicationInstanceNodeMappingInfo `json:"info" bson:"info"`
-}
-
-type ApplicationInstanceNodeMappingInfo struct {
 	Key string `json:"key" bson:"key"`
 	Instance string `json:"instance" bson:"instance"`
 	NodeIP string `json:"node_ip" bson:"node_ip"`
+}
+
+/*
+ * View
+ */
+type Project struct {
+	Name string `json:"project" bson:"project"`
+}
+
+type Service struct {
+	Project string `json:"project" bson:"project"`
+	Name string `json:"service" bson:"service"`
+}
+
+type Module struct {
+	Project string `json:"project" bson:"project"`
+	Service string `json:"service" bson:"service"`
+	Name string `json:"module" bson:"module"`
+	Instances []string `json:"instances" bson:"instances"`
 }

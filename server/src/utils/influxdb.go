@@ -1,8 +1,8 @@
 package utils
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
 	"github.com/DarkMetrix/monitor/server/src/protocol"
 
@@ -33,7 +33,7 @@ func (db *InfluxDBUtils) Init(address string, DBName string) error {
 }
 
 //Get nodes information
-func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.Node, error) {
+func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.NodeMapInfo, error) {
 	var err error
 
 	//Get node list
@@ -63,12 +63,12 @@ func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.Node, error) {
 		return nil, response.Error()
 	}
 
-	nodes := []protocol.Node{}
+	nodes := []protocol.NodeMapInfo{}
 
 	for _, result := range response.Results {
 		for _, serie := range result.Series {
 			if serie.Name == "node" {
-				node := protocol.NewNode()
+				node := protocol.NewNodeMapInfo()
 
 				for index, val := range serie.Columns {
 					column := fmt.Sprintf("%s", val)
@@ -101,7 +101,7 @@ func (db *InfluxDBUtils) GetNodes(ip string) ([]protocol.Node, error) {
 }
 
 //Get node instances (Not using)
-func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, error) {
+func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstanceMapInfo, error) {
 	//Get all measurements
 	query := client.Query{
 		Command:  "SHOW MEASUREMENTS",
@@ -121,7 +121,7 @@ func (db *InfluxDBUtils) GetNodeInstances(ip string) (*protocol.NodeInstance, er
 	}
 
 	//Get all instances except application
-	collection := protocol.NewNodeInstance()
+	collection := protocol.NewNodeInstanceMapInfo()
 
 	for _, result := range response.Results {
 		for _, serie := range result.Series {
@@ -307,7 +307,7 @@ func (db *InfluxDBUtils) GetNodeMetrixInterfaces(ip string, time string) (map[st
 }
 
 //Get application instances
-func (db *InfluxDBUtils) GetApplicationInstances(ip string) (*protocol.ApplicationInstance, error) {
+func (db *InfluxDBUtils) GetApplicationInstances(ip string) (*protocol.ApplicationInstanceMapInfo, error) {
 	var query client.Query
 
 	if ip == "all" {
@@ -337,7 +337,7 @@ func (db *InfluxDBUtils) GetApplicationInstances(ip string) (*protocol.Applicati
 	}
 
 	//Get all instances except application
-	collection := protocol.NewApplicationInstance()
+	collection := protocol.NewApplicationInstanceMapInfo()
 
 	for _, result := range response.Results {
 		for _, serie := range result.Series {
@@ -365,7 +365,7 @@ func (db *InfluxDBUtils) GetApplicationInstancesNodeMapping(time string) (map[st
 	var query client.Query
 
 	query = client.Query{
-		Command: fmt.Sprintf("SELECT * FROM application WHERE time > now() - %s group by node_ip, instance", time),
+		Command:  fmt.Sprintf("SELECT * FROM application WHERE time > now() - %s group by node_ip, instance", time),
 		Database: db.name,
 	}
 
