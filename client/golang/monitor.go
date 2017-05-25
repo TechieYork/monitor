@@ -7,79 +7,94 @@ import (
 
 //Global variables setting
 var (
-	monitorUnixPath = "/var/tmp/monitor.sock"
-	monitorUnixAddr = syscall.SockaddrUnix{Name:monitorUnixPath}
-	monitorUnixSocket = 0
-	monitorUnixIsInit = false
-
-	monitorUdpIp = [4]byte{127, 0, 0, 1}
-	monitorUdpPort = 5656
-	monitorUdpAddr = syscall.SockaddrInet4{Port:monitorUdpPort, Addr:monitorUdpIp}
-	monitorUdpSocket = 0
-	monitorUdpIsInit = false
+	UnixClient = NewUnixMonitorClient("/var/tmp/monitor.sock")
+	UdpClient = NewUdpMonitorClient([4]byte{127, 0, 0, 1}, 5656)
 
 	monitorSendBufferLen = 4 * 1024 * 1024
 	monitorPointMaxSize = 4096
 )
 
+//Unix monitor client
+type UnixMonitorClient struct {
+	path string					//Unix socket path, default is /var/tmp/monitor.sock
+	addr syscall.SockaddrUnix	//Socket address
+	socket int					//Socket fd
+	isInit bool					//Is initialized
+
+	bufferSize int				//Socket buffer size
+	pointMaxSize int 			//Point max size
+}
+
+//New function
+func NewUnixMonitorClient (path string) *UnixMonitorClient {
+	return &UnixMonitorClient{
+		path: path,
+		addr: syscall.SockaddrUnix{Name:path},
+		socket: 0,
+		isInit: false,
+		bufferSize: monitorSendBufferLen,
+		pointMaxSize: monitorPointMaxSize,
+	}
+}
+
 //Init monitor unix socket
-func InitMonitorUnix () error {
+func (client *UnixMonitorClient) Init() error {
 	var err error
 
 	//Check is init or not
-	if monitorUnixIsInit{
+	if client.isInit{
 		return nil
 	}
 
 	//Init socket and address
-	monitorUnixSocket, err = syscall.Socket(syscall.AF_UNIX, syscall.SOCK_DGRAM, syscall.IPPROTO_IP)
+	client.socket, err = syscall.Socket(syscall.AF_UNIX, syscall.SOCK_DGRAM, syscall.IPPROTO_IP)
 
 	if err != nil {
 		return err
 	}
 
 	//Set socket write buffer
-	err = syscall.SetsockoptInt(monitorUnixSocket, syscall.SOL_SOCKET, syscall.SO_SNDBUF, monitorSendBufferLen)
+	err = syscall.SetsockoptInt(client.socket, syscall.SOL_SOCKET, syscall.SO_SNDBUF, client.bufferSize)
 
 	if err != nil {
 		return err
 	}
 
-	monitorUnixIsInit = true
+	client.isInit = true
 
 	return nil
 }
 
 //Uninit monitor unix socket
-func UninitMonitorUnix () error {
-	if !monitorUnixIsInit {
+func (client *UnixMonitorClient) Uninit() error {
+	if !client.isInit {
 		return nil
 	}
 
-	err := syscall.Close(monitorUnixSocket)
+	err := syscall.Close(client.socket)
 
 	if err != nil {
 		return err
 	}
 
-	monitorUnixSocket = 0
+	client.socket = 0
+	client.isInit = false
 
-	monitorUnixIsInit = false
 	return nil
 }
 
 //Send monitor point via unix socket
 //point string must less than 4096
-func SendMonitorUnix (point string) error {
-	if !monitorUnixIsInit {
+func (client *UnixMonitorClient) Send(point string) error {
+	if !client.isInit {
 		return errors.New("Monitor not init!")
 	}
 
-	if len(point) > monitorPointMaxSize{
+	if len(point) > client.pointMaxSize {
 		return errors.New("Point string size too large!")
 	}
 
-	err := syscall.Sendto(monitorUnixSocket, []byte(point),0, &monitorUnixAddr)
+	err := syscall.Sendto(client.socket, []byte(point),0, &client.addr)
 
 	if err != nil {
 		return err
@@ -88,64 +103,95 @@ func SendMonitorUnix (point string) error {
 	return nil
 }
 
+//Set address
+func (client *UnixMonitorClient) SetAddr(path string) {
+	client.path = path
+	client.addr = syscall.SockaddrUnix{Name:path}
+}
+
+//Udp monitor client
+type UdpMonitorClient struct {
+	ip [4]byte					//Udp ip, default is [127, 0, 0, 1]
+	port int					//Udp port, default is 5656
+	addr syscall.SockaddrInet4	//Socket address
+	socket int					//Socket fd
+	isInit bool					//Is initialized
+
+	bufferSize int				//Socket buffer size
+	pointMaxSize int 			//Point max size
+}
+
+//New function
+func NewUdpMonitorClient (ip [4]byte, port int) *UdpMonitorClient {
+	return &UdpMonitorClient{
+		ip: ip,
+		port: port,
+		addr: syscall.SockaddrInet4{Addr:ip, Port:port},
+		socket: 0,
+		isInit: false,
+		bufferSize: monitorSendBufferLen,
+		pointMaxSize: monitorPointMaxSize,
+	}
+}
+
 //Init monitor udp socket
-func InitMonitorUdp() error {
+func (client *UdpMonitorClient) Init() error {
 	var err error
 
 	//Check is init or not
-	if monitorUdpIsInit{
+	if client.isInit {
 		return nil
 	}
 
 	//Init socket and address
-	monitorUdpSocket, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_IP)
+	client.socket, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_IP)
 
 	if err != nil {
 		return err
 	}
 
 	//Set socket write buffer
-	err = syscall.SetsockoptInt(monitorUdpSocket, syscall.SOL_SOCKET, syscall.SO_SNDBUF, monitorSendBufferLen)
+	err = syscall.SetsockoptInt(client.socket, syscall.SOL_SOCKET, syscall.SO_SNDBUF, client.bufferSize)
 
 	if err != nil {
 		return err
 	}
 
-	monitorUdpIsInit = true
+	client.isInit = true
 
 	return nil
 }
 
 //Uninit monitor udp socket
-func UninitMonitorUdp () error {
-	if !monitorUdpIsInit {
+func (client *UdpMonitorClient) Uninit() error {
+	if !client.isInit {
 		return nil
 	}
 
-	err := syscall.Close(monitorUdpSocket)
+	err := syscall.Close(client.socket)
 
 	if err != nil {
 		return err
 	}
 
-	monitorUdpSocket = 0
+	client.socket = 0
+	client.isInit = false
 
-	monitorUdpIsInit = false
 	return nil
 }
 
 //Send monitor point via udp socket
 //point string must less than 4096
-func SendMonitorUdp (point string) error {
-	if !monitorUdpIsInit {
+func (client *UdpMonitorClient) Send(point string) error {
+	if !client.isInit {
 		return errors.New("Monitor not init!")
 	}
 
-		if len(point) > monitorPointMaxSize{
+		if len(point) > client.pointMaxSize {
 		return errors.New("Point string size too large!")
 	}
 
-	err := syscall.Sendto(monitorUdpSocket, []byte(point),0, &monitorUdpAddr)
+	err := syscall.Sendto(client.socket, []byte(point),0, &client.addr)
 
 	if err != nil {
 		return err
@@ -154,3 +200,9 @@ func SendMonitorUdp (point string) error {
 	return nil
 }
 
+//Set address
+func (client *UdpMonitorClient) SetAddr(ip [4]byte, port int) {
+	client.ip = ip
+	client.port = port
+	client.addr = syscall.SockaddrInet4{Addr:ip, Port:port}
+}
