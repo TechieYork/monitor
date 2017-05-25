@@ -96,8 +96,10 @@ func (server *MonitorServer) Run() error {
 	http.PUT("/monitor/view/project/service/module", server.SetModule)
 	http.DELETE("/monitor/view/project/service/module", server.DelModule)
 
-	http.POST("/monitor/view/project/service/module/instance", server.AddApplicationInstance)
-	http.PUT("/monitor/view/project/service/module/instance", server.DelApplicationInstance)
+	http.POST("/monitor/view/project/service/module/instance", server.AddApplicationInstanceToModule)
+	http.PUT("/monitor/view/project/service/module/instance", server.DelApplicationInstanceFromModule)
+
+	http.GET("/monitor/instance/search", server.SearchApplicationInstance)
 
 	err = http.Run(server.config.Server.Address)
 
@@ -684,7 +686,7 @@ func (server *MonitorServer) DelModule(context *gin.Context) {
 }
 
 //Add application instance
-func (server *MonitorServer) AddApplicationInstance(context *gin.Context) {
+func (server *MonitorServer) AddApplicationInstanceToModule(context *gin.Context) {
 	//Unmarshal json body and check params
 	var module protocol.Module
 
@@ -705,7 +707,7 @@ func (server *MonitorServer) AddApplicationInstance(context *gin.Context) {
 }
 
 //Del application instance
-func (server *MonitorServer) DelApplicationInstance(context *gin.Context) {
+func (server *MonitorServer) DelApplicationInstanceFromModule(context *gin.Context) {
 	//Unmarshal json body and check params
 	var module protocol.Module
 
@@ -723,4 +725,20 @@ func (server *MonitorServer) DelApplicationInstance(context *gin.Context) {
 
 	//Reply
 	context.JSON(200, gin.H{"message": "success"})
+}
+
+//Search instance
+func (server *MonitorServer) SearchApplicationInstance(context *gin.Context) {
+	//Unmarshal json body and check params
+	text := context.Query("text")
+
+	instances, err := server.mongodb.SearchApplicationInstance(text)
+
+	if err != nil {
+		context.JSON(500, gin.H{"message": err.Error()})
+		return
+	}
+
+	//Reply
+	context.JSON(200, gin.H{"message": "success", "data":instances})
 }

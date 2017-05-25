@@ -146,6 +146,23 @@ func (db *MongoDBUtils) GetApplicationInstance(instance string) ([]protocol.Appl
 	return instances, nil
 }
 
+//Search application instance
+func (db *MongoDBUtils) SearchApplicationInstance(text string) ([]protocol.ApplicationInstance, error) {
+	collection := db.database.C("applications")
+
+	var instances []protocol.ApplicationInstance
+
+	regex := ".*" + text + ".*"
+
+	err := collection.Find(bson.M{"name":bson.M{"$regex":regex}}).All(&instances)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return instances, nil
+}
+
 //Del application instance
 func (db *MongoDBUtils) DelApplicationInstance(instance string) error {
 	collection := db.database.C("applications")
